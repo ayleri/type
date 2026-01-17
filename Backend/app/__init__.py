@@ -21,10 +21,8 @@ def create_app(config_class=Config):
 
     from routes.auth import auth_bp
     from routes.typing import typing_bp
-    from routes.leaderboard import leaderboard_bp
     
     app.register_blueprint(auth_bp)
     app.register_blueprint(typing_bp)
-    app.register_blueprint(leaderboard_bp)
 
     return app
