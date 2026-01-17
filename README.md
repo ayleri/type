@@ -1,15 +1,6 @@
-# MonkeyType Clone
+# Features
 
-A typing test application inspired by MonkeyType, built with React, Flask, and MongoDB.
 
-## Features
-
-- 🎯 Multiple test modes: Time-based (15s, 30s, 60s, 120s) and Word count (10, 25, 50, 100)
-- 📊 Real-time WPM and accuracy tracking
-- 👤 User authentication (register/login)
-- 🏆 Global leaderboards
-- 📈 Personal statistics and history
-- 🎨 Clean, minimal UI inspired by MonkeyType
 
 ## Tech Stack
 
@@ -17,7 +8,7 @@ A typing test application inspired by MonkeyType, built with React, Flask, and M
 - **Backend**: Python, Flask, Flask-PyMongo
 - **Database**: MongoDB
 
-## Prerequisites
+## Requirements
 
 - Node.js 18+
 - Python 3.10+
