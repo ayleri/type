@@ -1,22 +1,43 @@
-from app import db, bcrypt
+from app import bcrypt
 from datetime import datetime
+from bson import ObjectId
 
 
-class User(db.Model):
-    __tablename__ = 'users'
+class User:
+    def __init__(self, username, email, password_hash=None, _id=None, 
+                 created_at=None, tests_completed=0, tests_started=0):
+        self._id = _id or ObjectId()
+        self.username = username
+        self.email = email
+        self.password_hash = password_hash
+        self.created_at = created_at or datetime.utcnow()
+        self.tests_completed = tests_completed
+        self.tests_started = tests_started
     
-    id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(50), unique=True, nullable=False, index=True)
-    email = db.Column(db.String(120), unique=True, nullable=False, index=True)
-    password_hash = db.Column(db.String(255), nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    @staticmethod
+    def from_dict(data):
+        if not data:
+            return None
+        return User(
+            _id=data.get('_id'),
+            username=data.get('username'),
+            email=data.get('email'),
+            password_hash=data.get('password_hash'),
+            created_at=data.get('created_at'),
+            tests_completed=data.get('tests_completed', 0),
+            tests_started=data.get('tests_started', 0)
+        )
     
-    # Statistics
-    tests_completed = db.Column(db.Integer, default=0)
-    tests_started = db.Column(db.Integer, default=0)
-    
-    # Relationships
-    typing_results = db.relationship('TypingResult', backref='user', lazy='dynamic')
+    def to_mongo(self):
+        return {
+            '_id': self._id,
+            'username': self.username,
+            'email': self.email,
+            'password_hash': self.password_hash,
+            'created_at': self.created_at,
+            'tests_completed': self.tests_completed,
+            'tests_started': self.tests_started
+        }
     
     def set_password(self, password):
         self.password_hash = bcrypt.generate_password_hash(password).decode('utf-8')
@@ -24,36 +45,44 @@ class User(db.Model):
     def check_password(self, password):
         return bcrypt.check_password_hash(self.password_hash, password)
     
-    def get_best_wpm(self, mode='time', mode_value=60):
-        from app.models.typing_result import TypingResult
-        result = TypingResult.query.filter_by(
-            user_id=self.id,
-            mode=mode,
-            mode_value=mode_value
-        ).order_by(TypingResult.wpm.desc()).first()
-        return result.wpm if result else 0
+    def get_best_wpm(self, mongo_db, mode='time', mode_value=60):
+        result = mongo_db.typing_results.find_one(
+            {'user_id': self._id, 'mode': mode, 'mode_value': mode_value},
+            sort=[('wpm', -1)]
+        )
+        return result['wpm'] if result else 0
     
-    def get_average_wpm(self):
-        from app.models.typing_result import TypingResult
-        from sqlalchemy import func
-        result = db.session.query(func.avg(TypingResult.wpm)).filter_by(user_id=self.id).scalar()
-        return round(result, 2) if result else 0
+    def get_average_wpm(self, mongo_db):
+        pipeline = [
+            {'$match': {'user_id': self._id}},
+            {'$group': {'_id': None, 'avg_wpm': {'$avg': '$wpm'}}}
+        ]
+        result = list(mongo_db.typing_results.aggregate(pipeline))
+        return round(result[0]['avg_wpm'], 2) if result else 0
     
-    def get_average_accuracy(self):
-        from app.models.typing_result import TypingResult
-        from sqlalchemy import func
-        result = db.session.query(func.avg(TypingResult.accuracy)).filter_by(user_id=self.id).scalar()
-        return round(result, 2) if result else 0
+    def get_average_accuracy(self, mongo_db):
+        pipeline = [
+            {'$match': {'user_id': self._id}},
+            {'$group': {'_id': None, 'avg_accuracy': {'$avg': '$accuracy'}}}
+        ]
+        result = list(mongo_db.typing_results.aggregate(pipeline))
+        return round(result[0]['avg_accuracy'], 2) if result else 0
     
-    def to_dict(self):
-        return {
-            'id': self.id,
+    def to_dict(self, mongo_db=None):
+        data = {
+            'id': str(self._id),
             'username': self.username,
             'email': self.email,
             'created_at': self.created_at.isoformat(),
             'tests_completed': self.tests_completed,
             'tests_started': self.tests_started,
-            'best_wpm': self.get_best_wpm(),
-            'average_wpm': self.get_average_wpm(),
-            'average_accuracy': self.get_average_accuracy()
         }
+        if mongo_db:
+            data['best_wpm'] = self.get_best_wpm(mongo_db)
+            data['average_wpm'] = self.get_average_wpm(mongo_db)
+            data['average_accuracy'] = self.get_average_accuracy(mongo_db)
+        else:
+            data['best_wpm'] = 0
+            data['average_wpm'] = 0
+            data['average_accuracy'] = 0
+        return data

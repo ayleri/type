@@ -1,7 +1,8 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import create_access_token, create_refresh_token, jwt_required, get_jwt_identity
-from app import db
+from app import mongo
 from app.models.user import User
+from bson import ObjectId
 
 bp = Blueprint('auth', __name__, url_prefix='/api/auth')
 
@@ -26,24 +27,23 @@ def register():
     if len(password) < 6:
         return jsonify({'error': 'Password must be at least 6 characters'}), 400
     
-    if User.query.filter_by(username=username).first():
+    if mongo.db.users.find_one({'username': username}):
         return jsonify({'error': 'Username already exists'}), 409
     
-    if User.query.filter_by(email=email).first():
+    if mongo.db.users.find_one({'email': email}):
         return jsonify({'error': 'Email already registered'}), 409
     
     user = User(username=username, email=email)
     user.set_password(password)
     
-    db.session.add(user)
-    db.session.commit()
+    mongo.db.users.insert_one(user.to_mongo())
     
-    access_token = create_access_token(identity=user.id)
-    refresh_token = create_refresh_token(identity=user.id)
+    access_token = create_access_token(identity=str(user._id))
+    refresh_token = create_refresh_token(identity=str(user._id))
     
     return jsonify({
         'message': 'User registered successfully',
-        'user': user.to_dict(),
+        'user': user.to_dict(mongo.db),
         'access_token': access_token,
         'refresh_token': refresh_token
     }), 201
@@ -62,17 +62,18 @@ def login():
     if not all([username, password]):
         return jsonify({'error': 'Missing username or password'}), 400
     
-    user = User.query.filter_by(username=username).first()
+    user_data = mongo.db.users.find_one({'username': username})
+    user = User.from_dict(user_data)
     
     if not user or not user.check_password(password):
         return jsonify({'error': 'Invalid username or password'}), 401
     
-    access_token = create_access_token(identity=user.id)
-    refresh_token = create_refresh_token(identity=user.id)
+    access_token = create_access_token(identity=str(user._id))
+    refresh_token = create_refresh_token(identity=str(user._id))
     
     return jsonify({
         'message': 'Login successful',
-        'user': user.to_dict(),
+        'user': user.to_dict(mongo.db),
         'access_token': access_token,
         'refresh_token': refresh_token
     }), 200
@@ -90,36 +91,45 @@ def refresh():
 @jwt_required()
 def get_current_user():
     user_id = get_jwt_identity()
-    user = User.query.get(user_id)
+    user_data = mongo.db.users.find_one({'_id': ObjectId(user_id)})
+    user = User.from_dict(user_data)
     
     if not user:
         return jsonify({'error': 'User not found'}), 404
     
-    return jsonify({'user': user.to_dict()}), 200
+    return jsonify({'user': user.to_dict(mongo.db)}), 200
 
 
 @bp.route('/me', methods=['PUT'])
 @jwt_required()
 def update_user():
     user_id = get_jwt_identity()
-    user = User.query.get(user_id)
+    user_data = mongo.db.users.find_one({'_id': ObjectId(user_id)})
+    user = User.from_dict(user_data)
     
     if not user:
         return jsonify({'error': 'User not found'}), 404
     
     data = request.get_json()
+    update_data = {}
     
     if 'email' in data:
-        existing = User.query.filter_by(email=data['email']).first()
-        if existing and existing.id != user.id:
+        existing = mongo.db.users.find_one({'email': data['email']})
+        if existing and str(existing['_id']) != user_id:
             return jsonify({'error': 'Email already in use'}), 409
-        user.email = data['email']
+        update_data['email'] = data['email']
     
     if 'password' in data:
         if len(data['password']) < 6:
             return jsonify({'error': 'Password must be at least 6 characters'}), 400
         user.set_password(data['password'])
+        update_data['password_hash'] = user.password_hash
     
-    db.session.commit()
+    if update_data:
+        mongo.db.users.update_one({'_id': ObjectId(user_id)}, {'$set': update_data})
     
-    return jsonify({'user': user.to_dict()}), 200
+    # Fetch updated user
+    user_data = mongo.db.users.find_one({'_id': ObjectId(user_id)})
+    user = User.from_dict(user_data)
+    
+    return jsonify({'user': user.to_dict(mongo.db)}), 200

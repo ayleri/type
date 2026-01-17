@@ -1,8 +1,9 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from app import db
+from app import mongo
 from app.models.user import User
 from app.models.typing_result import TypingResult
+from bson import ObjectId
 import random
 
 bp = Blueprint('typing', __name__, url_prefix='/api/typing')
@@ -72,7 +73,8 @@ def get_quote():
 @jwt_required()
 def save_result():
     user_id = get_jwt_identity()
-    user = User.query.get(user_id)
+    user_data = mongo.db.users.find_one({'_id': ObjectId(user_id)})
+    user = User.from_dict(user_data)
     
     if not user:
         return jsonify({'error': 'User not found'}), 404
@@ -87,7 +89,7 @@ def save_result():
             return jsonify({'error': f'Missing field: {field}'}), 400
     
     result = TypingResult(
-        user_id=user_id,
+        user_id=ObjectId(user_id),
         mode=data['mode'],
         mode_value=data['mode_value'],
         language=data.get('language', 'english'),
@@ -98,13 +100,15 @@ def save_result():
         incorrect_chars=data['incorrect_chars'],
         extra_chars=data.get('extra_chars', 0),
         missed_chars=data.get('missed_chars', 0),
-        test_duration=data['test_duration']
+        test_duration=data['test_duration'],
+        username=user.username
     )
     
-    user.tests_completed += 1
-    
-    db.session.add(result)
-    db.session.commit()
+    mongo.db.typing_results.insert_one(result.to_mongo())
+    mongo.db.users.update_one(
+        {'_id': ObjectId(user_id)},
+        {'$inc': {'tests_completed': 1}}
+    )
     
     return jsonify({
         'message': 'Result saved successfully',
@@ -122,21 +126,28 @@ def get_results():
     mode = request.args.get('mode')
     mode_value = request.args.get('mode_value', type=int)
     
-    query = TypingResult.query.filter_by(user_id=user_id)
+    query = {'user_id': ObjectId(user_id)}
     
     if mode:
-        query = query.filter_by(mode=mode)
+        query['mode'] = mode
     if mode_value:
-        query = query.filter_by(mode_value=mode_value)
+        query['mode_value'] = mode_value
     
-    query = query.order_by(TypingResult.created_at.desc())
+    total = mongo.db.typing_results.count_documents(query)
+    skip = (page - 1) * per_page
     
-    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+    results_data = mongo.db.typing_results.find(query).sort('created_at', -1).skip(skip).limit(per_page)
+    
+    # Get username for results
+    user_data = mongo.db.users.find_one({'_id': ObjectId(user_id)})
+    username = user_data['username'] if user_data else None
+    
+    results = [TypingResult.from_dict(r, username).to_dict() for r in results_data]
     
     return jsonify({
-        'results': [r.to_dict() for r in pagination.items],
-        'total': pagination.total,
-        'pages': pagination.pages,
+        'results': results,
+        'total': total,
+        'pages': (total + per_page - 1) // per_page,
         'current_page': page
     }), 200
 
@@ -145,7 +156,8 @@ def get_results():
 @jwt_required()
 def get_stats():
     user_id = get_jwt_identity()
-    user = User.query.get(user_id)
+    user_data = mongo.db.users.find_one({'_id': ObjectId(user_id)})
+    user = User.from_dict(user_data)
     
     if not user:
         return jsonify({'error': 'User not found'}), 404
@@ -155,24 +167,24 @@ def get_stats():
     stats = {}
     
     for mode_value in time_modes:
-        results = TypingResult.query.filter_by(
-            user_id=user_id,
-            mode='time',
-            mode_value=mode_value
-        ).order_by(TypingResult.wpm.desc()).limit(10).all()
+        results = list(mongo.db.typing_results.find({
+            'user_id': ObjectId(user_id),
+            'mode': 'time',
+            'mode_value': mode_value
+        }).sort('wpm', -1).limit(10))
         
         if results:
             stats[f'time_{mode_value}'] = {
-                'best_wpm': results[0].wpm,
-                'best_accuracy': max(r.accuracy for r in results),
-                'tests_count': TypingResult.query.filter_by(
-                    user_id=user_id,
-                    mode='time',
-                    mode_value=mode_value
-                ).count()
+                'best_wpm': results[0]['wpm'],
+                'best_accuracy': max(r['accuracy'] for r in results),
+                'tests_count': mongo.db.typing_results.count_documents({
+                    'user_id': ObjectId(user_id),
+                    'mode': 'time',
+                    'mode_value': mode_value
+                })
             }
     
     return jsonify({
-        'user': user.to_dict(),
+        'user': user.to_dict(mongo.db),
         'detailed_stats': stats
     }), 200

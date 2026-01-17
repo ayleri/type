@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify
-from app import db
+from app import mongo
 from app.models.typing_result import TypingResult
-from sqlalchemy import func
+from datetime import datetime
 
 bp = Blueprint('leaderboard', __name__, url_prefix='/api/leaderboard')
 
@@ -13,33 +13,34 @@ def get_leaderboard():
     limit = request.args.get('limit', 100, type=int)
     limit = min(limit, 100)  # Cap at 100
     
-    # Get best score per user for the specified mode
-    subquery = db.session.query(
-        TypingResult.user_id,
-        func.max(TypingResult.wpm).label('best_wpm')
-    ).filter(
-        TypingResult.mode == mode,
-        TypingResult.mode_value == mode_value
-    ).group_by(TypingResult.user_id).subquery()
+    # Get best score per user for the specified mode using aggregation
+    pipeline = [
+        {'$match': {'mode': mode, 'mode_value': mode_value}},
+        {'$sort': {'wpm': -1}},
+        {'$group': {
+            '_id': '$user_id',
+            'best_wpm': {'$first': '$wpm'},
+            'accuracy': {'$first': '$accuracy'},
+            'created_at': {'$first': '$created_at'}
+        }},
+        {'$sort': {'best_wpm': -1}},
+        {'$limit': limit}
+    ]
     
-    results = db.session.query(TypingResult).join(
-        subquery,
-        db.and_(
-            TypingResult.user_id == subquery.c.user_id,
-            TypingResult.wpm == subquery.c.best_wpm,
-            TypingResult.mode == mode,
-            TypingResult.mode_value == mode_value
-        )
-    ).order_by(TypingResult.wpm.desc()).limit(limit).all()
+    results = list(mongo.db.typing_results.aggregate(pipeline))
+    
+    # Get usernames for all users
+    user_ids = [r['_id'] for r in results]
+    users = {u['_id']: u['username'] for u in mongo.db.users.find({'_id': {'$in': user_ids}})}
     
     leaderboard = []
     for rank, result in enumerate(results, 1):
         leaderboard.append({
             'rank': rank,
-            'username': result.user.username,
-            'wpm': round(result.wpm, 2),
-            'accuracy': round(result.accuracy, 2),
-            'date': result.created_at.isoformat()
+            'username': users.get(result['_id'], 'Unknown'),
+            'wpm': round(result['best_wpm'], 2),
+            'accuracy': round(result['accuracy'], 2),
+            'date': result['created_at'].isoformat()
         })
     
     return jsonify({
@@ -51,42 +52,43 @@ def get_leaderboard():
 
 @bp.route('/daily', methods=['GET'])
 def get_daily_leaderboard():
-    from datetime import datetime, timedelta
-    
     mode = request.args.get('mode', 'time')
     mode_value = request.args.get('mode_value', 60, type=int)
     
     today = datetime.utcnow().date()
     start_of_day = datetime.combine(today, datetime.min.time())
     
-    subquery = db.session.query(
-        TypingResult.user_id,
-        func.max(TypingResult.wpm).label('best_wpm')
-    ).filter(
-        TypingResult.mode == mode,
-        TypingResult.mode_value == mode_value,
-        TypingResult.created_at >= start_of_day
-    ).group_by(TypingResult.user_id).subquery()
+    pipeline = [
+        {'$match': {
+            'mode': mode,
+            'mode_value': mode_value,
+            'created_at': {'$gte': start_of_day}
+        }},
+        {'$sort': {'wpm': -1}},
+        {'$group': {
+            '_id': '$user_id',
+            'best_wpm': {'$first': '$wpm'},
+            'accuracy': {'$first': '$accuracy'},
+            'created_at': {'$first': '$created_at'}
+        }},
+        {'$sort': {'best_wpm': -1}},
+        {'$limit': 50}
+    ]
     
-    results = db.session.query(TypingResult).join(
-        subquery,
-        db.and_(
-            TypingResult.user_id == subquery.c.user_id,
-            TypingResult.wpm == subquery.c.best_wpm,
-            TypingResult.mode == mode,
-            TypingResult.mode_value == mode_value,
-            TypingResult.created_at >= start_of_day
-        )
-    ).order_by(TypingResult.wpm.desc()).limit(50).all()
+    results = list(mongo.db.typing_results.aggregate(pipeline))
+    
+    # Get usernames for all users
+    user_ids = [r['_id'] for r in results]
+    users = {u['_id']: u['username'] for u in mongo.db.users.find({'_id': {'$in': user_ids}})}
     
     leaderboard = []
     for rank, result in enumerate(results, 1):
         leaderboard.append({
             'rank': rank,
-            'username': result.user.username,
-            'wpm': round(result.wpm, 2),
-            'accuracy': round(result.accuracy, 2),
-            'date': result.created_at.isoformat()
+            'username': users.get(result['_id'], 'Unknown'),
+            'wpm': round(result['best_wpm'], 2),
+            'accuracy': round(result['accuracy'], 2),
+            'date': result['created_at'].isoformat()
         })
     
     return jsonify({

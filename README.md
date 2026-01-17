@@ -1,6 +1,6 @@
 # MonkeyType Clone
 
-A typing test application inspired by MonkeyType, built with React, Flask, and PostgreSQL.
+A typing test application inspired by MonkeyType, built with React, Flask, and MongoDB.
 
 ## Features
 
@@ -14,23 +14,22 @@ A typing test application inspired by MonkeyType, built with React, Flask, and P
 ## Tech Stack
 
 - **Frontend**: React 18, TypeScript, Vite, TailwindCSS, Zustand
-- **Backend**: Python, Flask, SQLAlchemy
-- **Database**: PostgreSQL
+- **Backend**: Python, Flask, Flask-PyMongo
+- **Database**: MongoDB
 
 ## Prerequisites
 
 - Node.js 18+
 - Python 3.10+
-- PostgreSQL 14+
+- MongoDB 6+
 
 ## Setup
 
 ### Database Setup
 
-1. Install PostgreSQL and create a database:
-```sql
-CREATE DATABASE monkeytype;
-```
+1. Install MongoDB and start the service:
+   - Download from https://www.mongodb.com/try/download/community
+   - Start MongoDB service (it will auto-create the database)
 
 ### Backend Setup
 
@@ -58,12 +57,12 @@ pip install -r requirements.txt
 cp .env.example .env
 ```
 
-6. Edit `.env` with your database credentials:
+6. Edit `.env` with your MongoDB connection string:
 ```
-DATABASE_URL=postgresql://postgres:yourpassword@localhost:5432/monkeytype
+MONGO_URI=mongodb://localhost:27017/monkeytype
 ```
 
-7. Initialize the database:
+7. Initialize database indexes:
 ```bash
 flask init-db
 ```
