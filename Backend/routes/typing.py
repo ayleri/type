@@ -4,38 +4,87 @@ from app import mongo
 from bson import ObjectId
 from datetime import datetime
 from utils.helpers import format_result
-from utils.words import ENGLISH_WORDS, QUOTES
+from utils.words import CODE_SNIPPETS, VIM_COMMANDS
 import random
 
 typing_bp = Blueprint('typing', __name__, url_prefix='/api/typing')
 
+SUPPORTED_LANGUAGES = ['python', 'javascript', 'typescript', 'rust', 'go', 'c', 'cpp']
 
-@typing_bp.route('/words', methods=['GET'])
-def get_words():
-    count = request.args.get('count', 50, type=int)
-    count = min(max(count, 10), 200)
-    
-    words = random.choices(ENGLISH_WORDS, k=count)
-    
+
+@typing_bp.route('/languages', methods=['GET'])
+def get_languages():
+    """Get list of supported programming languages."""
     return jsonify({
-        'words': words,
-        'text': ' '.join(words)
+        'languages': SUPPORTED_LANGUAGES
     }), 200
 
 
-@typing_bp.route('/quote', methods=['GET'])
-def get_quote():
-    quote = random.choice(QUOTES)
+@typing_bp.route('/snippet', methods=['GET'])
+def get_snippet():
+    """Get a random code snippet for typing practice."""
+    language = request.args.get('language', 'python').lower()
+    
+    if language not in CODE_SNIPPETS:
+        return jsonify({'error': f'Unsupported language. Choose from: {SUPPORTED_LANGUAGES}'}), 400
+    
+    snippet = random.choice(CODE_SNIPPETS[language])
     
     return jsonify({
-        'quote': quote,
-        'words': quote.split()
+        'language': language,
+        'code': snippet,
+        'lines': snippet.split('\n'),
+        'line_count': len(snippet.split('\n')),
+        'char_count': len(snippet)
+    }), 200
+
+
+@typing_bp.route('/snippets', methods=['GET'])
+def get_snippets():
+    """Get multiple code snippets for a session."""
+    language = request.args.get('language', 'python').lower()
+    count = request.args.get('count', 3, type=int)
+    count = min(max(count, 1), 10)
+    
+    if language not in CODE_SNIPPETS:
+        return jsonify({'error': f'Unsupported language. Choose from: {SUPPORTED_LANGUAGES}'}), 400
+    
+    snippets = random.sample(
+        CODE_SNIPPETS[language], 
+        min(count, len(CODE_SNIPPETS[language]))
+    )
+    
+    return jsonify({
+        'language': language,
+        'snippets': [
+            {
+                'code': s,
+                'lines': s.split('\n'),
+                'line_count': len(s.split('\n')),
+                'char_count': len(s)
+            }
+            for s in snippets
+        ]
+    }), 200
+
+
+@typing_bp.route('/vim-commands', methods=['GET'])
+def get_vim_commands():
+    """Get Vim commands for practice."""
+    count = request.args.get('count', 10, type=int)
+    count = min(max(count, 5), len(VIM_COMMANDS))
+    
+    commands = random.sample(VIM_COMMANDS, count)
+    
+    return jsonify({
+        'commands': commands
     }), 200
 
 
 @typing_bp.route('/result', methods=['POST'])
 @jwt_required()
 def save_result():
+    """Save a typing test result."""
     user_id = get_jwt_identity()
     user = mongo.db.users.find_one({'_id': ObjectId(user_id)})
     
@@ -44,7 +93,7 @@ def save_result():
     
     data = request.get_json()
     
-    required_fields = ['mode', 'mode_value', 'wpm', 'raw_wpm', 'accuracy', 
+    required_fields = ['mode', 'wpm', 'raw_wpm', 'accuracy', 
                       'correct_chars', 'incorrect_chars', 'test_duration']
     
     for field in required_fields:
@@ -53,9 +102,8 @@ def save_result():
     
     result = {
         'user_id': ObjectId(user_id),
-        'mode': data['mode'],
-        'mode_value': data['mode_value'],
-        'language': data.get('language', 'english'),
+        'mode': data['mode'],  # 'code' or 'vim'
+        'language': data.get('language', 'python'),
         'wpm': data['wpm'],
         'raw_wpm': data['raw_wpm'],
         'accuracy': data['accuracy'],
@@ -64,6 +112,7 @@ def save_result():
         'extra_chars': data.get('extra_chars', 0),
         'missed_chars': data.get('missed_chars', 0),
         'test_duration': data['test_duration'],
+        'lines_completed': data.get('lines_completed', 0),
         'created_at': datetime.utcnow()
     }
     
@@ -82,20 +131,21 @@ def save_result():
 @typing_bp.route('/results', methods=['GET'])
 @jwt_required()
 def get_results():
+    """Get user's typing test history."""
     user_id = get_jwt_identity()
     user = mongo.db.users.find_one({'_id': ObjectId(user_id)})
     
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 20, type=int)
+    language = request.args.get('language')
     mode = request.args.get('mode')
-    mode_value = request.args.get('mode_value', type=int)
     
     query = {'user_id': ObjectId(user_id)}
     
+    if language:
+        query['language'] = language
     if mode:
         query['mode'] = mode
-    if mode_value:
-        query['mode_value'] = mode_value
     
     total = mongo.db.typing_results.count_documents(query)
     skip = (page - 1) * per_page
@@ -116,31 +166,30 @@ def get_results():
 @typing_bp.route('/stats', methods=['GET'])
 @jwt_required()
 def get_stats():
+    """Get user's typing statistics by language."""
     user_id = get_jwt_identity()
     user = mongo.db.users.find_one({'_id': ObjectId(user_id)})
     
     if not user:
         return jsonify({'error': 'User not found'}), 404
     
-    time_modes = [15, 30, 60, 120]
     stats = {}
     
-    for mode_value in time_modes:
+    for language in SUPPORTED_LANGUAGES:
         results = list(mongo.db.typing_results.find({
             'user_id': ObjectId(user_id),
-            'mode': 'time',
-            'mode_value': mode_value
+            'language': language
         }).sort('wpm', -1).limit(10))
         
         if results:
-            stats[f'time_{mode_value}'] = {
+            stats[language] = {
                 'best_wpm': results[0]['wpm'],
                 'best_accuracy': max(r['accuracy'] for r in results),
                 'tests_count': mongo.db.typing_results.count_documents({
                     'user_id': ObjectId(user_id),
-                    'mode': 'time',
-                    'mode_value': mode_value
-                })
+                    'language': language
+                }),
+                'avg_wpm': sum(r['wpm'] for r in results) / len(results)
             }
     
     return jsonify({
@@ -149,5 +198,5 @@ def get_stats():
             'username': user['username'],
             'tests_completed': user.get('tests_completed', 0)
         },
-        'detailed_stats': stats
+        'stats_by_language': stats
     }), 200

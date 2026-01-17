@@ -17,8 +17,7 @@ def format_result(result, username=None):
         'user_id': str(result['user_id']),
         'username': username,
         'mode': result['mode'],
-        'mode_value': result['mode_value'],
-        'language': result.get('language', 'english'),
+        'language': result.get('language', 'python'),
         'wpm': round(result['wpm'], 2),
         'raw_wpm': round(result['raw_wpm'], 2),
         'accuracy': round(result['accuracy'], 2),
@@ -27,5 +26,6 @@ def format_result(result, username=None):
         'extra_chars': result.get('extra_chars', 0),
         'missed_chars': result.get('missed_chars', 0),
         'test_duration': round(result['test_duration'], 2),
+        'lines_completed': result.get('lines_completed', 0),
         'created_at': result['created_at'].isoformat()
     }
