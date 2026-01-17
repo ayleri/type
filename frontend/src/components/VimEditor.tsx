@@ -41,6 +41,11 @@ export default function VimEditor({ onTargetReached }: VimEditorProps) {
     // Parse the full command (buffer + current key)
     const command = buffer + key
 
+    // Helper: Check if character is a word character (alphanumeric or underscore)
+    const isWordChar = (c: string) => /\w/.test(c)
+    // Helper: Check if character is a WORD character (non-whitespace)
+    const isWORDChar = (c: string) => !/\s/.test(c)
+
     // Single key motions
     switch (command) {
       // Basic movement
@@ -57,13 +62,17 @@ export default function VimEditor({ onTargetReached }: VimEditorProps) {
         newPos = { line, col: col + 1 }
         break
 
-      // Word motions
+      // Word motions (word = alphanumeric + underscore)
       case 'w': {
         // Move to start of next word
         const currentLine = lines[line] || ''
         let newCol = col + 1
         // Skip current word
-        while (newCol < currentLine.length && !/\s/.test(currentLine[newCol])) {
+        while (newCol < currentLine.length && isWordChar(currentLine[newCol])) {
+          newCol++
+        }
+        // Skip non-word characters (but not whitespace if we hit punctuation)
+        while (newCol < currentLine.length && !isWordChar(currentLine[newCol]) && !/\s/.test(currentLine[newCol])) {
           newCol++
         }
         // Skip whitespace
@@ -79,7 +88,32 @@ export default function VimEditor({ onTargetReached }: VimEditorProps) {
           }
           newPos = { line: line + 1, col: nextCol }
         } else {
-          newPos = { line, col: Math.min(newCol, currentLine.length - 1) }
+          newPos = { line, col: Math.min(newCol, Math.max(0, currentLine.length - 1)) }
+        }
+        break
+      }
+
+      // WORD motions (WORD = non-whitespace)
+      case 'W': {
+        const currentLine = lines[line] || ''
+        let newCol = col + 1
+        // Skip current WORD
+        while (newCol < currentLine.length && isWORDChar(currentLine[newCol])) {
+          newCol++
+        }
+        // Skip whitespace
+        while (newCol < currentLine.length && /\s/.test(currentLine[newCol])) {
+          newCol++
+        }
+        if (newCol >= currentLine.length && line < lines.length - 1) {
+          const nextLine = lines[line + 1] || ''
+          let nextCol = 0
+          while (nextCol < nextLine.length && /\s/.test(nextLine[nextCol])) {
+            nextCol++
+          }
+          newPos = { line: line + 1, col: nextCol }
+        } else {
+          newPos = { line, col: Math.min(newCol, Math.max(0, currentLine.length - 1)) }
         }
         break
       }
@@ -92,8 +126,33 @@ export default function VimEditor({ onTargetReached }: VimEditorProps) {
         while (newCol > 0 && /\s/.test(currentLine[newCol])) {
           newCol--
         }
+        // Skip non-word chars
+        while (newCol > 0 && !isWordChar(currentLine[newCol]) && !/\s/.test(currentLine[newCol])) {
+          newCol--
+        }
         // Skip word
-        while (newCol > 0 && !/\s/.test(currentLine[newCol - 1])) {
+        while (newCol > 0 && isWordChar(currentLine[newCol - 1])) {
+          newCol--
+        }
+        if (newCol < 0 && line > 0) {
+          const prevLine = lines[line - 1] || ''
+          newPos = { line: line - 1, col: Math.max(0, prevLine.length - 1) }
+        } else {
+          newPos = { line, col: Math.max(0, newCol) }
+        }
+        break
+      }
+
+      case 'B': {
+        // Move to start of previous WORD
+        const currentLine = lines[line] || ''
+        let newCol = col - 1
+        // Skip whitespace
+        while (newCol > 0 && /\s/.test(currentLine[newCol])) {
+          newCol--
+        }
+        // Skip WORD
+        while (newCol > 0 && isWORDChar(currentLine[newCol - 1])) {
           newCol--
         }
         if (newCol < 0 && line > 0) {
@@ -114,10 +173,45 @@ export default function VimEditor({ onTargetReached }: VimEditorProps) {
           newCol++
         }
         // Move to end of word
-        while (newCol < currentLine.length - 1 && !/\s/.test(currentLine[newCol + 1])) {
+        while (newCol < currentLine.length - 1 && isWordChar(currentLine[newCol + 1])) {
           newCol++
         }
         newPos = { line, col: Math.min(newCol, currentLine.length - 1) }
+        break
+      }
+
+      case 'E': {
+        // Move to end of WORD
+        const currentLine = lines[line] || ''
+        let newCol = col + 1
+        // Skip whitespace
+        while (newCol < currentLine.length && /\s/.test(currentLine[newCol])) {
+          newCol++
+        }
+        // Move to end of WORD
+        while (newCol < currentLine.length - 1 && isWORDChar(currentLine[newCol + 1])) {
+          newCol++
+        }
+        newPos = { line, col: Math.min(newCol, currentLine.length - 1) }
+        break
+      }
+
+      // ge - end of previous word
+      case 'ge': {
+        const currentLine = lines[line] || ''
+        let newCol = col - 1
+        // Skip whitespace
+        while (newCol >= 0 && /\s/.test(currentLine[newCol])) {
+          newCol--
+        }
+        // We're now at end of previous word
+        if (newCol < 0 && line > 0) {
+          const prevLine = lines[line - 1] || ''
+          newPos = { line: line - 1, col: Math.max(0, prevLine.length - 1) }
+        } else {
+          newPos = { line, col: Math.max(0, newCol) }
+        }
+        setInputBuffer('')
         break
       }
 
@@ -138,6 +232,123 @@ export default function VimEditor({ onTargetReached }: VimEditorProps) {
       case '$':
         newPos = { line, col: (lines[line]?.length || 1) - 1 }
         break
+      case '_': {
+        // First non-blank of current line (like ^)
+        const currentLine = lines[line] || ''
+        let firstNonSpace = 0
+        while (firstNonSpace < currentLine.length && /\s/.test(currentLine[firstNonSpace])) {
+          firstNonSpace++
+        }
+        newPos = { line, col: firstNonSpace }
+        break
+      }
+
+      // Paragraph motions
+      case '{': {
+        // Move to previous blank line (paragraph start)
+        let newLine = line - 1
+        while (newLine > 0 && lines[newLine].trim() !== '') {
+          newLine--
+        }
+        newPos = { line: Math.max(0, newLine), col: 0 }
+        break
+      }
+      case '}': {
+        // Move to next blank line (paragraph end)
+        let newLine = line + 1
+        while (newLine < lines.length - 1 && lines[newLine].trim() !== '') {
+          newLine++
+        }
+        newPos = { line: Math.min(lines.length - 1, newLine), col: 0 }
+        break
+      }
+
+      // Matching bracket
+      case '%': {
+        const currentLine = lines[line] || ''
+        const char = currentLine[col]
+        const brackets: Record<string, string> = {
+          '(': ')', ')': '(',
+          '[': ']', ']': '[',
+          '{': '}', '}': '{',
+          '<': '>', '>': '<',
+        }
+        const openBrackets = '([{<'
+        const closeBrackets = ')]}>'
+        
+        if (brackets[char]) {
+          const isOpen = openBrackets.includes(char)
+          const target = brackets[char]
+          let depth = 1
+          
+          if (isOpen) {
+            // Search forward
+            for (let l = line; l < lines.length && depth > 0; l++) {
+              const startCol = l === line ? col + 1 : 0
+              for (let c = startCol; c < lines[l].length && depth > 0; c++) {
+                if (lines[l][c] === char) depth++
+                else if (lines[l][c] === target) {
+                  depth--
+                  if (depth === 0) newPos = { line: l, col: c }
+                }
+              }
+            }
+          } else {
+            // Search backward
+            for (let l = line; l >= 0 && depth > 0; l--) {
+              const startCol = l === line ? col - 1 : lines[l].length - 1
+              for (let c = startCol; c >= 0 && depth > 0; c--) {
+                if (lines[l][c] === char) depth++
+                else if (lines[l][c] === target) {
+                  depth--
+                  if (depth === 0) newPos = { line: l, col: c }
+                }
+              }
+            }
+          }
+        }
+        break
+      }
+
+      // Screen motions
+      case 'H':
+        // Top of screen (first line)
+        newPos = { line: 0, col: 0 }
+        break
+      case 'M':
+        // Middle of screen
+        newPos = { line: Math.floor(lines.length / 2), col: 0 }
+        break
+      case 'L':
+        // Bottom of screen (last line)
+        newPos = { line: lines.length - 1, col: 0 }
+        break
+
+      // Line jumps
+      case '+': {
+        // First non-blank of next line
+        if (line < lines.length - 1) {
+          const nextLine = lines[line + 1] || ''
+          let firstNonSpace = 0
+          while (firstNonSpace < nextLine.length && /\s/.test(nextLine[firstNonSpace])) {
+            firstNonSpace++
+          }
+          newPos = { line: line + 1, col: firstNonSpace }
+        }
+        break
+      }
+      case '-': {
+        // First non-blank of previous line
+        if (line > 0) {
+          const prevLine = lines[line - 1] || ''
+          let firstNonSpace = 0
+          while (firstNonSpace < prevLine.length && /\s/.test(prevLine[firstNonSpace])) {
+            firstNonSpace++
+          }
+          newPos = { line: line - 1, col: firstNonSpace }
+        }
+        break
+      }
 
       // Document motions
       case 'g':
@@ -160,6 +371,13 @@ export default function VimEditor({ onTargetReached }: VimEditorProps) {
       case 'T':
         setInputBuffer(command)
         consumed = false
+        break
+
+      // Repeat find
+      case ';':
+      case ',':
+        // These would repeat last f/F/t/T - need to store last find
+        // For now, just consume
         break
 
       default:
