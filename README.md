@@ -90,8 +90,8 @@ Again, click the link to the localhost if this is run on your own computer to ru
 - GET /api/typing/stats - Get user's statistics
 
 ### Leaderboard
-- `GET /api/leaderboard` - Get global leaderboard
-- `GET /api/leaderboard/daily` - Get daily leaderboard
+- GET /api/leaderboard - Get global leaderboard
+- GET /api/leaderboard/daily - Get daily leaderboard
 
 ## License
 
