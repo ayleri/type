@@ -37,11 +37,11 @@ export default function Home() {
       {/* Hero Section */}
       <section className="text-center py-16">
         <h1 className="text-5xl font-bold text-vim-text mb-4">
-          Master <span className="text-vim-green">Vim</span>
+          Typ<span className="text-vim-green">race</span>
         </h1>
         <p className="text-xl text-vim-subtext mb-8 max-w-2xl mx-auto">
-          Improve your time with navigating code using Vim commands.
-          Are you ready to become a cracked Vim user?
+          Improve your typing speed, coding writing, and Vim navigation through
+          personalized practice texts and challenges.
         </p>
         <div className="flex items-center justify-center gap-4">
           <Link
@@ -100,46 +100,16 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Features */}
-      <section>
-        <h2 className="text-2xl font-bold text-vim-text text-center mb-8">Why Typrace?</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {features.map((feature, idx) => (
-            <div
-              key={idx}
-              className="bg-vim-surface p-6 rounded-xl border border-vim-overlay hover:border-vim-green/50 transition-colors"
-            >
-              <div className="text-4xl mb-4">{feature.icon}</div>
-              <h3 className="text-lg font-semibold text-vim-text mb-2">{feature.title}</h3>
-              <p className="text-vim-subtext text-sm">{feature.description}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* Command Reference */}
-      <section className="bg-vim-surface rounded-xl p-8 border border-vim-overlay">
-        <h2 className="text-2xl font-bold text-vim-text mb-6">Quick Reference</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {commands.map((cmd, idx) => (
-            <div key={idx} className="flex items-center gap-4">
-              <kbd className="bg-vim-bg px-3 py-2 rounded text-vim-green font-mono min-w-[100px] text-center">
-                {cmd.key}
-              </kbd>
-              <span className="text-vim-subtext">{cmd.desc}</span>
-            </div>
-          ))}
-        </div>
-      </section>
+      {/* (Removed: Features and Quick Reference sections) */}
 
       {/* CTA */}
       <section className="text-center py-8">
-        <p className="text-vim-subtext mb-4">Ready to level up your Vim skills?</p>
+        <p className="text-vim-subtext mb-4">Ready to improve your skills?</p>
         <Link
           to="/play"
           className="inline-flex items-center gap-2 bg-vim-green text-vim-bg px-8 py-4 rounded-lg font-bold text-lg hover:bg-vim-green/90 transition-colors"
         >
-          <span>Start Racing</span>
+          <span>Start Improving!</span>
           <span>→</span>
         </Link>
       </section>
