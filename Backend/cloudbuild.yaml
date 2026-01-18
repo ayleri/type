@@ -15,6 +15,7 @@ steps:
       - 'us-central1'
       - '--platform'
       - 'managed'
+      # Allow unauthenticated access - API has JWT authentication at application level
       - '--allow-unauthenticated'
 images:
   - 'gcr.io/$PROJECT_ID/typrace-backend:$COMMIT_SHA'
