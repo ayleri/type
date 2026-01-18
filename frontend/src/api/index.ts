@@ -40,28 +40,12 @@ export const authApi = {
     api.post('/auth/login', { username, password }),
   
   getMe: () => api.get('/auth/me'),
-  
-  refresh: () => api.post('/auth/refresh'),
 }
 
 // Typing API
 export const typingApi = {
-  getLanguages: () => api.get('/typing/languages'),
-  
-  getSnippet: (language: string, useAI: boolean = false) =>
-    api.get(`/typing/snippet?language=${language}&ai=${useAI}`),
-  
-  generateSnippet: (language: string) =>
-    api.post('/typing/generate', { language }),
-  
   getVimChallenge: (language: string, targetCount: number = 5, weaknesses: string[] = []) =>
     api.post('/typing/vim-challenge', { language, target_count: targetCount, weaknesses }),
-  
-  getSnippets: (language: string, count: number = 3) =>
-    api.get(`/typing/snippets?language=${language}&count=${count}`),
-  
-  getVimCommands: (count: number = 10) =>
-    api.get(`/typing/vim-commands?count=${count}`),
   
   saveResult: (data: {
     mode: string
@@ -93,8 +77,6 @@ export const typingApi = {
   getStats: () => api.get('/typing/stats'),
   
   getWeaknesses: () => api.get('/typing/weaknesses'),
-  
-  getTargetWeights: () => api.get('/typing/target-weights'),
 }
 
 export default api
