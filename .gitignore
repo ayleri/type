@@ -1,2 +1,14 @@
 .idea/
 __pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+.venv
+venv/
+*.sqlite
+.DS_Store
+node_modules/
+dist/
+.vercel/
+*.log
