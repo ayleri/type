@@ -110,7 +110,7 @@ const COMMON_WORDS = [
   'vengeance', 'wrath', 'fury', 'hatred', 'spite', 'malevolence', 'vindictive', 'merciless', 'pitiless', 'remorseless',
   'corruption', 'depravity', 'wickedness', 'maleficence', 'atrocity', 'abomination', 'blasphemy', 'sacrilege', 'heresy', 'profanity',
   'conspiracy', 'treachery', 'betrayal', 'deception', 'duplicity', 'fraud', 'subterfuge', 'machination', 'intrigue', 'stratagem',
-  'obliteration', 'extermination', 'eradication', 'elimination', 'annihilation', 'decimation', 'slaughter', 'massacre', 'genocide', 'holocaust',
+  'obliteration', 'extermination', 'eradication', 'elimination', 'annihilation', 'decimation', 'slaughter', 'massacre', 'downfall', 'collapse',
   'dominion', 'supremacy', 'hegemony', 'sovereignty', 'ascendancy', 'conquest', 'subjugation', 'enslavement', 'oppression', 'tyranny',
   'necromancy', 'sorcery', 'witchcraft', 'occult', 'forbidden', 'profane', 'unholy', 'impious', 'blasphemous', 'sacrilegious',
 ]

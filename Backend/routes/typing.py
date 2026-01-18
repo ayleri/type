@@ -255,12 +255,12 @@ def generate_typing_code(language: str) -> dict | None:
             "a recursive doom function",
             "a function using dark comprehensions",
             "a conspiracy configuration parser",
-            "a malware cache implementation",
-            "a betrayal authentication bypass",
+            "a cursed cache implementation",
+            "a treacherous validation function",
         ]
         
         themes = [
-            "world domination system", "chaos engine", "destruction protocol", "malware deployment",
+            "world domination system", "chaos engine", "destruction protocol", "cursed deployment",
             "data corruption", "system sabotage", "evil scheme tracker", "villain database",
             "mayhem generator", "anarchy manager", "dark ritual handler", "corruption spreader",
             "betrayal logger", "manipulation framework", "terror campaign", "devastation planner",
