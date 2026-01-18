@@ -43,12 +43,23 @@ interface WeaknessResponse {
   weakness_counts: Record<string, number>
 }
 
+interface TypingModeStats {
+  history: Array<{ wpm: number; accuracy: number; date: string; language?: string }>
+  stats: {
+    tests_completed: number
+    best_wpm: number
+    avg_accuracy: number
+  }
+}
+
 interface TypingAnalyticsResponse {
   problem_character_pairs: Array<{ pair: string; avg_ms: number; errors: number; count: number }>
   problem_words: Array<{ word: string; attempts: number; errors: number; error_rate: number }>
   difficult_finger_transitions: Array<{ type: string; avg_ms: number; errors: number; severity: string }>
   tests_completed: number
   history: Array<{ wpm: number; accuracy: number; date: string }>
+  words_mode?: TypingModeStats
+  code_mode?: TypingModeStats
 }
 
 export default function Stats() {
@@ -138,7 +149,6 @@ export default function Stats() {
 
   const languages = Object.keys(stats)
   const vimResults = results.filter(r => r.mode !== 'typing')
-  const typingResults = results.filter(r => r.mode === 'typing')
   const filteredResults = selectedLanguage 
     ? vimResults.filter(r => r.language === selectedLanguage)
     : vimResults
@@ -381,29 +391,148 @@ export default function Stats() {
         <>
           {/* Typing Test Stats */}
           <div className="space-y-6">
-            {/* Summary Stats */}
-            {typingAnalytics && typingAnalytics.history.length > 0 ? (
+            {typingAnalytics && (typingAnalytics.words_mode?.history.length || typingAnalytics.code_mode?.history.length) ? (
               <>
+                {/* Overall Stats */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="bg-vim-surface rounded-xl border border-vim-overlay p-6 text-center">
                     <div className="text-4xl font-bold text-vim-mauve mb-2">
-                      {Math.max(...typingAnalytics.history.map(h => h.wpm))}
+                      {Math.max(
+                        typingAnalytics.words_mode?.stats.best_wpm || 0,
+                        typingAnalytics.code_mode?.stats.best_wpm || 0
+                      )}
                     </div>
                     <div className="text-vim-subtext">Best WPM</div>
                   </div>
                   <div className="bg-vim-surface rounded-xl border border-vim-overlay p-6 text-center">
                     <div className="text-4xl font-bold text-vim-green mb-2">
-                      {Math.round(typingAnalytics.history.reduce((a, h) => a + h.accuracy, 0) / typingAnalytics.history.length)}%
+                      {typingAnalytics.tests_completed}
                     </div>
-                    <div className="text-vim-subtext">Avg Accuracy</div>
+                    <div className="text-vim-subtext">Total Tests</div>
                   </div>
                   <div className="bg-vim-surface rounded-xl border border-vim-overlay p-6 text-center">
                     <div className="text-4xl font-bold text-vim-text mb-2">
-                      {typingAnalytics.tests_completed}
+                      {Math.round(
+                        ((typingAnalytics.words_mode?.stats.avg_accuracy || 0) + 
+                         (typingAnalytics.code_mode?.stats.avg_accuracy || 0)) / 
+                        ((typingAnalytics.words_mode?.history.length ? 1 : 0) + 
+                         (typingAnalytics.code_mode?.history.length ? 1 : 0) || 1)
+                      )}%
                     </div>
-                    <div className="text-vim-subtext">Tests Completed</div>
+                    <div className="text-vim-subtext">Avg Accuracy</div>
                   </div>
                 </div>
+
+                {/* Words Mode Section */}
+                {typingAnalytics.words_mode && typingAnalytics.words_mode.history.length > 0 && (
+                  <div className="bg-vim-surface rounded-xl border border-vim-overlay p-6">
+                    <h3 className="text-xl font-semibold text-vim-text mb-4 flex items-center gap-2">
+                      <span className="text-vim-green">📝</span> Words Mode
+                    </h3>
+                    <div className="grid grid-cols-3 gap-4 mb-4">
+                      <div className="bg-vim-base rounded-lg p-4 text-center">
+                        <div className="text-2xl font-bold text-vim-mauve">{typingAnalytics.words_mode.stats.best_wpm}</div>
+                        <div className="text-vim-subtext text-sm">Best WPM</div>
+                      </div>
+                      <div className="bg-vim-base rounded-lg p-4 text-center">
+                        <div className="text-2xl font-bold text-vim-green">{typingAnalytics.words_mode.stats.avg_accuracy}%</div>
+                        <div className="text-vim-subtext text-sm">Avg Accuracy</div>
+                      </div>
+                      <div className="bg-vim-base rounded-lg p-4 text-center">
+                        <div className="text-2xl font-bold text-vim-text">{typingAnalytics.words_mode.stats.tests_completed}</div>
+                        <div className="text-vim-subtext text-sm">Tests</div>
+                      </div>
+                    </div>
+                    <div className="overflow-hidden rounded-lg border border-vim-overlay">
+                      <table className="w-full">
+                        <thead>
+                          <tr className="border-b border-vim-overlay bg-vim-base">
+                            <th className="text-left text-vim-subtext text-xs uppercase tracking-wide px-4 py-2">WPM</th>
+                            <th className="text-left text-vim-subtext text-xs uppercase tracking-wide px-4 py-2">Accuracy</th>
+                            <th className="text-left text-vim-subtext text-xs uppercase tracking-wide px-4 py-2">Date</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {typingAnalytics.words_mode.history.slice(0, 5).map((result, i) => (
+                            <tr key={i} className="border-b border-vim-overlay/50">
+                              <td className="px-4 py-2">
+                                <span className="text-vim-green font-bold">{result.wpm}</span>
+                              </td>
+                              <td className="px-4 py-2 text-vim-text">{result.accuracy}%</td>
+                              <td className="px-4 py-2 text-vim-subtext text-sm">
+                                {result.date ? new Date(result.date).toLocaleDateString() : 'N/A'}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* Code Mode Section */}
+                {typingAnalytics.code_mode && typingAnalytics.code_mode.history.length > 0 ? (
+                  <div className="bg-vim-surface rounded-xl border border-vim-overlay p-6">
+                    <h3 className="text-xl font-semibold text-vim-text mb-4 flex items-center gap-2">
+                      <span className="text-vim-mauve">💻</span> Code Mode
+                    </h3>
+                    <div className="grid grid-cols-3 gap-4 mb-4">
+                      <div className="bg-vim-base rounded-lg p-4 text-center">
+                        <div className="text-2xl font-bold text-vim-mauve">{typingAnalytics.code_mode.stats.best_wpm}</div>
+                        <div className="text-vim-subtext text-sm">Best WPM</div>
+                      </div>
+                      <div className="bg-vim-base rounded-lg p-4 text-center">
+                        <div className="text-2xl font-bold text-vim-green">{typingAnalytics.code_mode.stats.avg_accuracy}%</div>
+                        <div className="text-vim-subtext text-sm">Avg Accuracy</div>
+                      </div>
+                      <div className="bg-vim-base rounded-lg p-4 text-center">
+                        <div className="text-2xl font-bold text-vim-text">{typingAnalytics.code_mode.stats.tests_completed}</div>
+                        <div className="text-vim-subtext text-sm">Tests</div>
+                      </div>
+                    </div>
+                    <div className="overflow-hidden rounded-lg border border-vim-overlay">
+                      <table className="w-full">
+                        <thead>
+                          <tr className="border-b border-vim-overlay bg-vim-base">
+                            <th className="text-left text-vim-subtext text-xs uppercase tracking-wide px-4 py-2">WPM</th>
+                            <th className="text-left text-vim-subtext text-xs uppercase tracking-wide px-4 py-2">Accuracy</th>
+                            <th className="text-left text-vim-subtext text-xs uppercase tracking-wide px-4 py-2">Language</th>
+                            <th className="text-left text-vim-subtext text-xs uppercase tracking-wide px-4 py-2">Date</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {typingAnalytics.code_mode.history.slice(0, 5).map((result, i) => (
+                            <tr key={i} className="border-b border-vim-overlay/50">
+                              <td className="px-4 py-2">
+                                <span className="text-vim-green font-bold">{result.wpm}</span>
+                              </td>
+                              <td className="px-4 py-2 text-vim-text">{result.accuracy}%</td>
+                              <td className="px-4 py-2 text-vim-mauve capitalize">{result.language || 'N/A'}</td>
+                              <td className="px-4 py-2 text-vim-subtext text-sm">
+                                {result.date ? new Date(result.date).toLocaleDateString() : 'N/A'}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-vim-surface rounded-xl border border-vim-overlay p-6">
+                    <h3 className="text-xl font-semibold text-vim-text mb-4 flex items-center gap-2">
+                      <span className="text-vim-mauve">💻</span> Code Mode
+                    </h3>
+                    <div className="text-center py-4">
+                      <p className="text-vim-subtext mb-3">No code mode tests yet.</p>
+                      <Link
+                        to="/type"
+                        className="inline-flex bg-vim-mauve text-vim-bg px-4 py-2 rounded-lg text-sm font-medium hover:bg-vim-mauve/90 transition-colors"
+                      >
+                        Try Code Mode
+                      </Link>
+                    </div>
+                  </div>
+                )}
 
                 {/* Problem Character Pairs */}
                 {typingAnalytics.problem_character_pairs.length > 0 && (
@@ -426,15 +555,25 @@ export default function Stats() {
                 {/* Problem Words */}
                 {typingAnalytics.problem_words.length > 0 && (
                   <div className="bg-vim-surface rounded-xl border border-vim-overlay p-6">
-                    <h3 className="text-lg font-semibold text-vim-text mb-4">Problem Words</h3>
+                    <h3 className="text-lg font-semibold text-vim-text mb-4">Problem Words / Lines</h3>
                     <div className="space-y-2">
-                      {typingAnalytics.problem_words.slice(0, 5).map((word, i) => (
+                      {typingAnalytics.problem_words.slice(0, 8).map((word, i) => (
                         <div key={i} className="flex items-center justify-between bg-vim-base rounded-lg p-3">
-                          <span className="font-mono text-vim-text">{word.word}</span>
-                          <div className="flex items-center gap-4 text-sm">
+                          <span className="font-mono text-vim-text truncate max-w-md" title={word.word}>
+                            {word.word.length > 40 ? word.word.slice(0, 40) + '...' : word.word}
+                          </span>
+                          <div className="flex items-center gap-4 text-sm flex-shrink-0">
                             <span className="text-vim-subtext">{word.attempts} attempts</span>
                             <span className="text-vim-red">{word.errors} errors</span>
-                            <span className="text-vim-yellow">{word.error_rate}% error rate</span>
+                            <span className={`px-2 py-0.5 rounded ${
+                              word.error_rate > 50 
+                                ? 'bg-red-500/20 text-vim-red' 
+                                : word.error_rate > 20 
+                                  ? 'bg-yellow-500/20 text-vim-yellow'
+                                  : 'bg-green-500/20 text-vim-green'
+                            }`}>
+                              {word.error_rate}%
+                            </span>
                           </div>
                         </div>
                       ))}
@@ -459,7 +598,7 @@ export default function Stats() {
                           }`}
                         >
                           <div className="font-medium text-vim-text capitalize mb-2">
-                            {transition.type.replace('_', ' ')}
+                            {transition.type.replace(/_/g, ' ')}
                           </div>
                           <div className="text-sm text-vim-subtext space-y-1">
                             <div>Avg: {transition.avg_ms}ms</div>
@@ -470,36 +609,6 @@ export default function Stats() {
                     </div>
                   </div>
                 )}
-
-                {/* Recent Typing Results */}
-                <div>
-                  <h2 className="text-xl font-semibold text-vim-text mb-4">Recent Typing Tests</h2>
-                  <div className="bg-vim-surface rounded-xl border border-vim-overlay overflow-hidden">
-                    <table className="w-full">
-                      <thead>
-                        <tr className="border-b border-vim-overlay">
-                          <th className="text-left text-vim-subtext text-xs uppercase tracking-wide px-6 py-3">WPM</th>
-                          <th className="text-left text-vim-subtext text-xs uppercase tracking-wide px-6 py-3">Accuracy</th>
-                          <th className="text-left text-vim-subtext text-xs uppercase tracking-wide px-6 py-3">Date</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {typingAnalytics.history.map((result, i) => (
-                          <tr key={i} className="border-b border-vim-overlay/50 hover:bg-vim-overlay/20">
-                            <td className="px-6 py-4">
-                              <span className="text-vim-green font-bold">{result.wpm}</span>
-                              <span className="text-vim-subtext text-sm ml-1">wpm</span>
-                            </td>
-                            <td className="px-6 py-4 text-vim-text">{result.accuracy}%</td>
-                            <td className="px-6 py-4 text-vim-subtext text-sm">
-                              {result.date ? new Date(result.date).toLocaleDateString() : 'N/A'}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
               </>
             ) : (
               <div className="bg-vim-surface rounded-xl border border-vim-overlay p-8 text-center">

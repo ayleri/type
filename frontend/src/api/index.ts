@@ -87,6 +87,8 @@ export const typingApi = {
     keystrokes: number
     correct_keystrokes: number
     words_typed: number
+    test_mode: 'words' | 'code'
+    language?: string
     analytics: {
       problem_character_pairs: Array<{ pair: string; avg_ms: number; errors: number }>
       problem_words: Array<{ word: string; attempts: number; errors: number; avg_wpm: number }>
@@ -95,6 +97,10 @@ export const typingApi = {
   }) => api.post('/typing/typing-analytics', data),
   
   getTypingAnalytics: () => api.get('/typing/typing-analytics'),
+  
+  // Generate code for typing test
+  generateTypingCode: (language: string) =>
+    api.post('/typing/generate-typing-code', { language }),
 }
 
 export default api

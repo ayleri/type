@@ -227,6 +227,119 @@ def get_vim_challenge():
     }), 200
 
 
+def generate_typing_code(language: str) -> dict | None:
+    """Generate code snippets for typing practice."""
+    api_key = get_openai_key()
+    if not api_key:
+        print("No OpenAI API key found")
+        return None
+    
+    try:
+        from openai import OpenAI
+        import json
+        client = OpenAI(api_key=api_key)
+        
+        prompt = f"""Generate a realistic {language} code snippet for typing practice.
+
+Requirements:
+- Generate 8-12 lines of realistic, properly formatted {language} code
+- Include a variety of programming constructs (functions, variables, control flow, etc.)
+- Use proper indentation and formatting
+- Make it look like real production code
+- Include common patterns developers type frequently
+- Mix different syntactic elements (brackets, parentheses, operators, strings)
+
+Return ONLY valid JSON in this exact format:
+{{
+  "lines": [
+    "def calculate_total(items):",
+    "    total = 0",
+    "    for item in items:",
+    "        if item.price > 0:",
+    "            total += item.price * item.quantity",
+    "    return total"
+  ]
+}}
+
+Make sure:
+- Each line is a separate string in the array
+- Preserve exact indentation with spaces (not tabs)
+- No trailing whitespace
+- Code is syntactically correct and idiomatic for {language}"""
+
+        print(f"Generating typing code for {language}...")
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": f"You are an expert {language} developer. Output only valid JSON, no markdown or explanation."},
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=800,
+            temperature=0.8
+        )
+        
+        content = response.choices[0].message.content.strip()
+        
+        # Remove markdown code blocks if present
+        if content.startswith('```'):
+            lines = content.split('\n')
+            content = '\n'.join(lines[1:-1] if lines[-1].startswith('```') else lines[1:])
+        
+        result = json.loads(content)
+        
+        if 'lines' not in result or not isinstance(result['lines'], list):
+            print("Invalid response structure")
+            return None
+        
+        # Filter out empty lines at the end
+        lines = result['lines']
+        while lines and lines[-1].strip() == '':
+            lines.pop()
+        
+        if len(lines) < 3:
+            print("Not enough lines generated")
+            return None
+        
+        print(f"Generated {len(lines)} lines of {language} code")
+        return {
+            'lines': lines,
+            'language': language
+        }
+        
+    except json.JSONDecodeError as e:
+        print(f"JSON parsing failed: {e}")
+        return None
+    except Exception as e:
+        import traceback
+        print(f"Typing code generation failed: {e}")
+        traceback.print_exc()
+        return None
+
+
+@typing_bp.route('/generate-typing-code', methods=['POST'])
+def get_typing_code():
+    """Generate code for typing practice."""
+    if not get_openai_key():
+        return jsonify({'error': 'AI generation not configured. Set OPENAI_API_KEY environment variable.'}), 503
+    
+    data = request.get_json() or {}
+    language = data.get('language', 'python').lower()
+    
+    if language not in SUPPORTED_LANGUAGES:
+        return jsonify({'error': f'Unsupported language. Choose from: {SUPPORTED_LANGUAGES}'}), 400
+    
+    result = generate_typing_code(language)
+    
+    if not result:
+        return jsonify({'error': 'Failed to generate code'}), 500
+    
+    return jsonify({
+        'language': language,
+        'lines': result['lines'],
+        'ai_generated': True
+    }), 200
+
+
 @typing_bp.route('/result', methods=['POST'])
 @jwt_required()
 def save_result():
@@ -491,6 +604,8 @@ def save_typing_analytics():
     result = {
         'user_id': ObjectId(user_id),
         'mode': 'typing',
+        'test_mode': data.get('test_mode', 'words'),  # 'words' or 'code'
+        'language': data.get('language'),  # Only for code mode
         'wpm': data.get('wpm', 0),
         'raw_wpm': data.get('raw_wpm', 0),
         'accuracy': data.get('accuracy', 0),
@@ -615,23 +730,97 @@ def get_typing_analytics():
                 'severity': 'high' if error_rate > 0.1 else 'medium' if error_rate > 0.05 else 'low'
             })
     
-    # Get recent test history
-    recent_tests = list(mongo.db.typing_results.find({
+    # Get recent test history for words mode
+    words_tests = list(mongo.db.typing_results.find({
         'user_id': ObjectId(user_id),
-        'mode': 'typing'
+        'mode': 'typing',
+        '$or': [
+            {'test_mode': 'words'},
+            {'test_mode': {'$exists': False}}  # Legacy tests without test_mode
+        ]
     }).sort('created_at', -1).limit(10))
     
-    history = [{
+    # Get total count for words mode
+    words_count = mongo.db.typing_results.count_documents({
+        'user_id': ObjectId(user_id),
+        'mode': 'typing',
+        '$or': [
+            {'test_mode': 'words'},
+            {'test_mode': {'$exists': False}}
+        ]
+    })
+    
+    # Get all words tests for best WPM calculation
+    all_words_tests = list(mongo.db.typing_results.find({
+        'user_id': ObjectId(user_id),
+        'mode': 'typing',
+        '$or': [
+            {'test_mode': 'words'},
+            {'test_mode': {'$exists': False}}
+        ]
+    }, {'wpm': 1, 'accuracy': 1}))
+    
+    words_history = [{
         'wpm': t.get('wpm', 0),
         'accuracy': t.get('accuracy', 0),
         'date': t.get('created_at').isoformat() if t.get('created_at') else None
-    } for t in recent_tests]
+    } for t in words_tests]
+    
+    # Get recent test history for code mode
+    code_tests = list(mongo.db.typing_results.find({
+        'user_id': ObjectId(user_id),
+        'mode': 'typing',
+        'test_mode': 'code'
+    }).sort('created_at', -1).limit(10))
+    
+    # Get total count for code mode
+    code_count = mongo.db.typing_results.count_documents({
+        'user_id': ObjectId(user_id),
+        'mode': 'typing',
+        'test_mode': 'code'
+    })
+    
+    # Get all code tests for best WPM calculation
+    all_code_tests = list(mongo.db.typing_results.find({
+        'user_id': ObjectId(user_id),
+        'mode': 'typing',
+        'test_mode': 'code'
+    }, {'wpm': 1, 'accuracy': 1, 'language': 1}))
+    
+    code_history = [{
+        'wpm': t.get('wpm', 0),
+        'accuracy': t.get('accuracy', 0),
+        'language': t.get('language', 'unknown'),
+        'date': t.get('created_at').isoformat() if t.get('created_at') else None
+    } for t in code_tests]
+    
+    # Calculate separate stats for words and code modes
+    words_stats = {
+        'tests_completed': words_count,
+        'best_wpm': max([t.get('wpm', 0) for t in all_words_tests], default=0),
+        'avg_accuracy': round(sum([t.get('accuracy', 0) for t in all_words_tests]) / len(all_words_tests)) if all_words_tests else 0,
+    }
+    
+    code_stats = {
+        'tests_completed': code_count,
+        'best_wpm': max([t.get('wpm', 0) for t in all_code_tests], default=0),
+        'avg_accuracy': round(sum([t.get('accuracy', 0) for t in all_code_tests]) / len(all_code_tests)) if all_code_tests else 0,
+    }
     
     return jsonify({
         'problem_character_pairs': problem_pairs[:10],
         'problem_words': problem_words[:10],
         'difficult_finger_transitions': finger_transitions,
         'tests_completed': user.get('typing_tests_completed', 0),
-        'history': history
+        'words_mode': {
+            'history': words_history,
+            'stats': words_stats,
+        },
+        'code_mode': {
+            'history': code_history,
+            'stats': code_stats,
+        },
+        # Keep legacy history for backward compatibility
+        'history': words_history + code_history,
     }), 200
 

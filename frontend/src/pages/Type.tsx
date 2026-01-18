@@ -4,9 +4,14 @@ import { useTypingAnalyticsStore } from '../stores/typingAnalyticsStore'
 import { useAuthStore } from '../stores/authStore'
 import { typingApi } from '../api'
 
+type TestMode = 'words' | 'code'
+const LANGUAGES = ['javascript', 'python', 'typescript', 'rust', 'go'] as const
+
 export default function Type() {
   const [showResults, setShowResults] = useState(false)
   const [timeLimit, setTimeLimit] = useState(60)
+  const [testMode, setTestMode] = useState<TestMode>('words')
+  const [language, setLanguage] = useState<string>('javascript')
   const [resultSaved, setResultSaved] = useState(false)
   const [saving, setSaving] = useState(false)
   
@@ -56,6 +61,8 @@ export default function Type() {
         keystrokes: keystrokes.length,
         correct_keystrokes: keystrokes.filter(k => k.correct).length,
         words_typed: wordAttempts.length,
+        test_mode: testMode,
+        language: testMode === 'code' ? language : undefined,
         analytics,
       })
       setResultSaved(true)
@@ -76,7 +83,51 @@ export default function Type() {
         
         {/* Settings bar */}
         {!isFinished && (
-          <div className="flex items-center justify-center gap-4 mb-8">
+          <div className="flex flex-col items-center gap-4 mb-8">
+            {/* Mode selector */}
+            <div className="flex items-center gap-2 bg-vim-surface rounded-lg p-1">
+              <button
+                onClick={() => setTestMode('words')}
+                className={`px-4 py-2 rounded-md transition-colors ${
+                  testMode === 'words'
+                    ? 'bg-vim-green text-vim-base'
+                    : 'text-vim-subtext hover:text-vim-text'
+                }`}
+              >
+                Words
+              </button>
+              <button
+                onClick={() => setTestMode('code')}
+                className={`px-4 py-2 rounded-md transition-colors ${
+                  testMode === 'code'
+                    ? 'bg-vim-green text-vim-base'
+                    : 'text-vim-subtext hover:text-vim-text'
+                }`}
+              >
+                Code
+              </button>
+            </div>
+            
+            {/* Language selector (only for code mode) */}
+            {testMode === 'code' && (
+              <div className="flex items-center gap-2 bg-vim-surface rounded-lg p-1">
+                {LANGUAGES.map(lang => (
+                  <button
+                    key={lang}
+                    onClick={() => setLanguage(lang)}
+                    className={`px-3 py-1.5 rounded-md transition-colors text-sm capitalize ${
+                      language === lang
+                        ? 'bg-vim-mauve text-vim-base'
+                        : 'text-vim-subtext hover:text-vim-text'
+                    }`}
+                  >
+                    {lang}
+                  </button>
+                ))}
+              </div>
+            )}
+            
+            {/* Time selector */}
             <div className="flex items-center gap-2 bg-vim-surface rounded-lg p-1">
               {[10, 30, 60].map(time => (
                 <button
@@ -97,7 +148,12 @@ export default function Type() {
         
         {/* Test or Results */}
         {!showResults ? (
-          <TypingTest onFinish={handleFinish} timeLimit={timeLimit} />
+          <TypingTest 
+            onFinish={handleFinish} 
+            timeLimit={timeLimit} 
+            mode={testMode}
+            language={language}
+          />
         ) : (
           <div className="space-y-6">
             {/* Main stats */}

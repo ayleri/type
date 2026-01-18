@@ -115,6 +115,114 @@ const COMMON_WORDS = [
   'recommend', 'referred', 'relevant', 'restaurant', 'successful', 'tomorrow',
 ]
 
+// Code snippets by language
+const CODE_SNIPPETS: Record<string, string[]> = {
+  javascript: [
+    'const sum = (a, b) => a + b;',
+    'function greet(name) { return `Hello, ${name}!`; }',
+    'const arr = [1, 2, 3].map(x => x * 2);',
+    'if (user && user.isActive) { sendEmail(user); }',
+    'const { name, age } = person;',
+    'async function fetchData(url) { const res = await fetch(url); return res.json(); }',
+    'const filtered = items.filter(item => item.price > 10);',
+    'try { await saveData(); } catch (e) { console.error(e); }',
+    'export default function App() { return <div>Hello</div>; }',
+    'const [count, setCount] = useState(0);',
+    'useEffect(() => { loadData(); }, []);',
+    'const result = numbers.reduce((acc, n) => acc + n, 0);',
+    'class User { constructor(name) { this.name = name; } }',
+    'const promise = new Promise((resolve, reject) => {});',
+    'Object.keys(obj).forEach(key => console.log(key));',
+  ],
+  python: [
+    'def greet(name): return f"Hello, {name}!"',
+    'result = [x * 2 for x in range(10)]',
+    'if user and user.is_active: send_email(user)',
+    'class User: def __init__(self, name): self.name = name',
+    'with open("file.txt", "r") as f: data = f.read()',
+    'async def fetch_data(url): return await client.get(url)',
+    'filtered = list(filter(lambda x: x > 10, items))',
+    'try: save_data() except Exception as e: print(e)',
+    'from typing import List, Optional, Dict',
+    'def factorial(n): return 1 if n <= 1 else n * factorial(n-1)',
+    '@app.route("/api/users") def get_users(): return users',
+    'import numpy as np; arr = np.array([1, 2, 3])',
+    'data = {"name": "John", "age": 30, "active": True}',
+    'for i, item in enumerate(items): print(f"{i}: {item}")',
+    'result = sum(x for x in numbers if x % 2 == 0)',
+  ],
+  typescript: [
+    'const greet = (name: string): string => `Hello, ${name}!`;',
+    'interface User { id: number; name: string; email: string; }',
+    'type Status = "pending" | "active" | "completed";',
+    'function process<T>(data: T[]): T[] { return data; }',
+    'const result: number = arr.reduce((a, b) => a + b, 0);',
+    'export interface Props { children: React.ReactNode; }',
+    'const [items, setItems] = useState<string[]>([]);',
+    'async function fetchUser(id: number): Promise<User> {}',
+    'const handler: React.ChangeEventHandler<HTMLInputElement> = (e) => {};',
+    'type Partial<T> = { [P in keyof T]?: T[P] };',
+    'class Service implements IService { async fetch() {} }',
+    'const config: Readonly<Config> = Object.freeze({});',
+    'function assert(condition: boolean): asserts condition {}',
+    'const map = new Map<string, number>();',
+    'enum Direction { Up, Down, Left, Right }',
+  ],
+  rust: [
+    'fn main() { println!("Hello, world!"); }',
+    'let mut vec: Vec<i32> = Vec::new();',
+    'fn greet(name: &str) -> String { format!("Hello, {}!", name) }',
+    'match result { Ok(v) => v, Err(e) => panic!("{}", e) }',
+    'struct User { name: String, age: u32 }',
+    'impl User { fn new(name: &str) -> Self { Self { name: name.to_string(), age: 0 } } }',
+    'let filtered: Vec<_> = items.iter().filter(|x| x > &10).collect();',
+    'if let Some(value) = option { println!("{}", value); }',
+    'async fn fetch_data(url: &str) -> Result<String, Error> {}',
+    '#[derive(Debug, Clone, Serialize)]',
+    'use std::collections::HashMap;',
+    'for (i, item) in items.iter().enumerate() { println!("{}: {}", i, item); }',
+    'let closure = |x: i32| x * 2;',
+    'pub enum Option<T> { Some(T), None }',
+    'fn process<T: Clone>(data: &[T]) -> Vec<T> { data.to_vec() }',
+  ],
+  go: [
+    'func main() { fmt.Println("Hello, World!") }',
+    'func greet(name string) string { return "Hello, " + name }',
+    'type User struct { Name string; Age int }',
+    'if err != nil { return fmt.Errorf("failed: %w", err) }',
+    'for i, v := range items { fmt.Printf("%d: %v\\n", i, v) }',
+    'result := make([]int, 0, 10)',
+    'go func() { processData(data) }()',
+    'select { case msg := <-ch: handle(msg) default: wait() }',
+    'defer file.Close()',
+    'func (u *User) Greet() string { return "Hi, " + u.Name }',
+    'ctx, cancel := context.WithTimeout(ctx, 5*time.Second)',
+    'var wg sync.WaitGroup; wg.Add(1)',
+    'json.Unmarshal(data, &result)',
+    'http.HandleFunc("/api", handler)',
+    'import ( "fmt"; "strings"; "errors" )',
+  ],
+}
+
+export function generateCodeWords(language: string): string[] {
+  const snippets = CODE_SNIPPETS[language] || CODE_SNIPPETS.javascript
+  // Shuffle and pick random snippets, split into words
+  const shuffled = [...snippets].sort(() => Math.random() - 0.5)
+  const words: string[] = []
+  for (const snippet of shuffled) {
+    // Split code into "words" (tokens separated by spaces)
+    words.push(...snippet.split(/\s+/).filter(w => w.length > 0))
+  }
+  // Repeat if needed for longer tests
+  while (words.length < 200) {
+    const more = [...snippets].sort(() => Math.random() - 0.5)
+    for (const snippet of more) {
+      words.push(...snippet.split(/\s+/).filter(w => w.length > 0))
+    }
+  }
+  return words
+}
+
 export const useTypingAnalyticsStore = create<TypingAnalyticsState>((set, get) => ({
   words: [],
   currentWordIndex: 0,
