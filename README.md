@@ -96,3 +96,12 @@ Again, click the link to the localhost if this is run on your own computer to ru
 ## License
 
 MIT
+
+## Deployment
+
+See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed instructions on deploying to production.
+
+Quick links:
+- Frontend: Deploy to [Vercel](https://vercel.com)
+- Backend: Deploy to [Google Cloud Run](https://cloud.google.com/run)
+- Database: [MongoDB Atlas](https://www.mongodb.com/cloud/atlas)
