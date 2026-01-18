@@ -17,9 +17,13 @@ export default function Layout() {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Check for '?' key (Shift + /)
       if (e.key === '?' && !e.ctrlKey && !e.metaKey && !e.altKey) {
-        // Prevent triggering when typing in an input or textarea
+        // Prevent triggering when typing in an input, textarea, or contentEditable element
         const target = e.target as HTMLElement
-        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
+        if (
+          target instanceof HTMLInputElement ||
+          target instanceof HTMLTextAreaElement ||
+          target.isContentEditable
+        ) {
           return
         }
         e.preventDefault()

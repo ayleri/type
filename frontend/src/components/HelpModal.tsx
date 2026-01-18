@@ -16,12 +16,16 @@ export default function HelpModal({ isOpen, onClose }: HelpModalProps) {
     <div
       className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
       onClick={handleOverlayClick}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="help-modal-title"
     >
       <div className="bg-vim-surface rounded-lg shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto border border-vim-overlay">
         {/* Header */}
         <div className="sticky top-0 bg-vim-surface border-b border-vim-overlay px-6 py-4 flex items-center justify-between">
-          <h2 className="text-2xl font-bold text-vim-green">Keyboard Shortcuts & Vim Motions</h2>
+          <h2 id="help-modal-title" className="text-2xl font-bold text-vim-green">Keyboard Shortcuts & Vim Motions</h2>
           <button
+            type="button"
             onClick={onClose}
             className="text-vim-subtext hover:text-vim-red transition-colors text-2xl leading-none"
             aria-label="Close"
