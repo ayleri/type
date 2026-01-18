@@ -237,27 +237,54 @@ def generate_typing_code(language: str) -> dict | None:
     try:
         from openai import OpenAI
         import json
+        import random
         client = OpenAI(api_key=api_key)
         
-        prompt = f"""Generate a realistic {language} code snippet for typing practice.
+        # Randomize the type of code to generate
+        code_types = [
+            "a function that processes data",
+            "a class with methods",
+            "an API endpoint handler",
+            "a utility function with error handling",
+            "a data validation function",
+            "a sorting or filtering algorithm",
+            "a file processing function",
+            "a database query helper",
+            "a string manipulation utility",
+            "a math calculation function",
+            "a recursive function",
+            "a function using list comprehensions",
+            "a configuration parser",
+            "a cache implementation",
+            "an authentication helper",
+        ]
+        
+        themes = [
+            "user management", "shopping cart", "blog posts", "inventory",
+            "notifications", "payments", "analytics", "messaging",
+            "file uploads", "search functionality", "logging", "testing",
+        ]
+        
+        code_type = random.choice(code_types)
+        theme = random.choice(themes)
+        
+        prompt = f"""Generate a unique {language} code snippet for typing practice.
+
+Create {code_type} related to {theme}.
 
 Requirements:
 - Generate 8-12 lines of realistic, properly formatted {language} code
-- Include a variety of programming constructs (functions, variables, control flow, etc.)
 - Use proper indentation and formatting
 - Make it look like real production code
-- Include common patterns developers type frequently
-- Mix different syntactic elements (brackets, parentheses, operators, strings)
+- Include a variety of syntax elements (brackets, operators, strings, etc.)
+- Make this snippet DIFFERENT from typical examples - be creative!
 
 Return ONLY valid JSON in this exact format:
 {{
   "lines": [
-    "def calculate_total(items):",
-    "    total = 0",
-    "    for item in items:",
-    "        if item.price > 0:",
-    "            total += item.price * item.quantity",
-    "    return total"
+    "line 1 of code",
+    "line 2 of code",
+    "..."
   ]
 }}
 
@@ -265,17 +292,18 @@ Make sure:
 - Each line is a separate string in the array
 - Preserve exact indentation with spaces (not tabs)
 - No trailing whitespace
-- Code is syntactically correct and idiomatic for {language}"""
+- Code is syntactically correct and idiomatic for {language}
+- Be creative and generate something unique!"""
 
-        print(f"Generating typing code for {language}...")
+        print(f"Generating typing code for {language} ({code_type} - {theme})...")
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": f"You are an expert {language} developer. Output only valid JSON, no markdown or explanation."},
+                {"role": "system", "content": f"You are an expert {language} developer. Generate unique, creative code snippets. Output only valid JSON, no markdown or explanation."},
                 {"role": "user", "content": prompt}
             ],
             max_tokens=800,
-            temperature=0.8
+            temperature=1.0
         )
         
         content = response.choices[0].message.content.strip()
