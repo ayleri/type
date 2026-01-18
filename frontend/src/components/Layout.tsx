@@ -1,14 +1,44 @@
 import { Outlet, Link, useLocation } from 'react-router-dom'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useAuthStore } from '../stores/authStore'
+import HelpModal from './HelpModal'
 
 export default function Layout() {
   const location = useLocation()
   const { user, isAuthenticated, isLoading, checkAuth, logout } = useAuthStore()
+  const [isHelpModalOpen, setIsHelpModalOpen] = useState(false)
 
   useEffect(() => {
     checkAuth()
   }, [checkAuth])
+
+  // Keyboard event listener for help modal
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Check for '?' key (Shift + /)
+      if (e.key === '?' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        // Prevent triggering when typing in an input, textarea, or contentEditable element
+        const target = e.target as HTMLElement
+        if (
+          target instanceof HTMLInputElement ||
+          target instanceof HTMLTextAreaElement ||
+          target.isContentEditable
+        ) {
+          return
+        }
+        e.preventDefault()
+        setIsHelpModalOpen(prev => !prev)
+      }
+      // Check for Escape key to close modal
+      else if (e.key === 'Escape' && isHelpModalOpen) {
+        e.preventDefault()
+        setIsHelpModalOpen(false)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isHelpModalOpen])
 
   const navLinks = [
     { path: '/', label: 'Home' },
@@ -27,6 +57,9 @@ export default function Layout() {
 
   return (
     <div className="min-h-screen bg-vim-bg">
+      {/* Help Modal */}
+      <HelpModal isOpen={isHelpModalOpen} onClose={() => setIsHelpModalOpen(false)} />
+      
       {/* Header */}
       <header className="border-b border-vim-surface">
         <div className="max-w-7xl mx-auto px-4 py-4">
