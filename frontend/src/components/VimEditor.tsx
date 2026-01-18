@@ -5,6 +5,159 @@ interface VimEditorProps {
   onTargetReached?: () => void
 }
 
+// Helper function to apply a single motion (used for count prefixes like 5j)
+function applySingleMotion(motion: string, pos: Position, lines: string[]): Position {
+  const { line, col } = pos
+  const isWordChar = (c: string) => /\w/.test(c)
+  const isWORDChar = (c: string) => !/\s/.test(c)
+
+  switch (motion) {
+    case 'h':
+      return { line, col: Math.max(0, col - 1) }
+    case 'j':
+      return { line: Math.min(lines.length - 1, line + 1), col }
+    case 'k':
+      return { line: Math.max(0, line - 1), col }
+    case 'l': {
+      const lineLen = lines[line]?.length || 0
+      return { line, col: Math.min(lineLen - 1, col + 1) }
+    }
+    case 'w': {
+      const currentLine = lines[line] || ''
+      let newCol = col + 1
+      // Skip current word
+      while (newCol < currentLine.length && isWordChar(currentLine[newCol])) {
+        newCol++
+      }
+      // Skip non-word characters
+      while (newCol < currentLine.length && !isWordChar(currentLine[newCol]) && !/\s/.test(currentLine[newCol])) {
+        newCol++
+      }
+      // Skip whitespace
+      while (newCol < currentLine.length && /\s/.test(currentLine[newCol])) {
+        newCol++
+      }
+      if (newCol >= currentLine.length && line < lines.length - 1) {
+        const nextLine = lines[line + 1] || ''
+        let nextCol = 0
+        while (nextCol < nextLine.length && /\s/.test(nextLine[nextCol])) {
+          nextCol++
+        }
+        return { line: line + 1, col: nextCol }
+      }
+      return { line, col: Math.min(newCol, Math.max(0, currentLine.length - 1)) }
+    }
+    case 'W': {
+      const currentLine = lines[line] || ''
+      let newCol = col + 1
+      while (newCol < currentLine.length && isWORDChar(currentLine[newCol])) {
+        newCol++
+      }
+      while (newCol < currentLine.length && /\s/.test(currentLine[newCol])) {
+        newCol++
+      }
+      if (newCol >= currentLine.length && line < lines.length - 1) {
+        const nextLine = lines[line + 1] || ''
+        let nextCol = 0
+        while (nextCol < nextLine.length && /\s/.test(nextLine[nextCol])) {
+          nextCol++
+        }
+        return { line: line + 1, col: nextCol }
+      }
+      return { line, col: Math.min(newCol, Math.max(0, currentLine.length - 1)) }
+    }
+    case 'b': {
+      const currentLine = lines[line] || ''
+      let newCol = col - 1
+      while (newCol > 0 && /\s/.test(currentLine[newCol])) {
+        newCol--
+      }
+      while (newCol > 0 && !isWordChar(currentLine[newCol]) && !/\s/.test(currentLine[newCol])) {
+        newCol--
+      }
+      while (newCol > 0 && isWordChar(currentLine[newCol - 1])) {
+        newCol--
+      }
+      if (newCol < 0 && line > 0) {
+        const prevLine = lines[line - 1] || ''
+        return { line: line - 1, col: Math.max(0, prevLine.length - 1) }
+      }
+      return { line, col: Math.max(0, newCol) }
+    }
+    case 'B': {
+      const currentLine = lines[line] || ''
+      let newCol = col - 1
+      while (newCol > 0 && /\s/.test(currentLine[newCol])) {
+        newCol--
+      }
+      while (newCol > 0 && isWORDChar(currentLine[newCol - 1])) {
+        newCol--
+      }
+      if (newCol < 0 && line > 0) {
+        const prevLine = lines[line - 1] || ''
+        return { line: line - 1, col: Math.max(0, prevLine.length - 1) }
+      }
+      return { line, col: Math.max(0, newCol) }
+    }
+    case 'e': {
+      const currentLine = lines[line] || ''
+      let newCol = col + 1
+      while (newCol < currentLine.length && /\s/.test(currentLine[newCol])) {
+        newCol++
+      }
+      while (newCol < currentLine.length - 1 && isWordChar(currentLine[newCol + 1])) {
+        newCol++
+      }
+      return { line, col: Math.min(newCol, currentLine.length - 1) }
+    }
+    case 'E': {
+      const currentLine = lines[line] || ''
+      let newCol = col + 1
+      while (newCol < currentLine.length && /\s/.test(currentLine[newCol])) {
+        newCol++
+      }
+      while (newCol < currentLine.length - 1 && isWORDChar(currentLine[newCol + 1])) {
+        newCol++
+      }
+      return { line, col: Math.min(newCol, currentLine.length - 1) }
+    }
+    case '0':
+      return { line, col: 0 }
+    case '$': {
+      const lineLen = lines[line]?.length || 0
+      return { line, col: Math.max(0, lineLen - 1) }
+    }
+    case '^': {
+      const currentLine = lines[line] || ''
+      let newCol = 0
+      while (newCol < currentLine.length && /\s/.test(currentLine[newCol])) {
+        newCol++
+      }
+      return { line, col: newCol }
+    }
+    case '{': {
+      // Move to previous blank line
+      let newLine = line - 1
+      while (newLine > 0 && lines[newLine].trim() !== '') {
+        newLine--
+      }
+      return { line: Math.max(0, newLine), col: 0 }
+    }
+    case '}': {
+      // Move to next blank line
+      let newLine = line + 1
+      while (newLine < lines.length - 1 && lines[newLine].trim() !== '') {
+        newLine++
+      }
+      return { line: Math.min(lines.length - 1, newLine), col: 0 }
+    }
+    case 'G':
+      return { line: lines.length - 1, col: 0 }
+    default:
+      return pos
+  }
+}
+
 export default function VimEditor({ onTargetReached }: VimEditorProps) {
   const {
     lines,
@@ -40,6 +193,36 @@ export default function VimEditor({ onTargetReached }: VimEditorProps) {
 
     // Parse the full command (buffer + current key)
     const command = buffer + key
+
+    // Check for count prefix first (e.g., "5j", "10w", "3k")
+    const countMatch = command.match(/^(\d+)([hjklwbeWBEGgfFtT$0^{}])$/)
+    if (countMatch) {
+      const count = parseInt(countMatch[1])
+      const motion = countMatch[2]
+      
+      // Apply the motion 'count' times
+      let currentPos = { ...cursor }
+      for (let i = 0; i < count; i++) {
+        currentPos = applySingleMotion(motion, currentPos, lines)
+      }
+      
+      addKeystroke(command)
+      moveCursor(currentPos)
+      setInputBuffer('')
+      
+      setTimeout(() => {
+        if (checkTarget()) {
+          onTargetReached?.()
+        }
+      }, 0)
+      return
+    }
+    
+    // Check if we're accumulating digits for a count
+    if (/^\d+$/.test(command)) {
+      setInputBuffer(command)
+      return
+    }
 
     // Helper: Check if character is a word character (alphanumeric or underscore)
     const isWordChar = (c: string) => /\w/.test(c)
@@ -405,20 +588,6 @@ export default function VimEditor({ onTargetReached }: VimEditorProps) {
           }
           setInputBuffer('')
         }
-        // Check for number prefix (e.g., 5j)
-        else if (/^\d+$/.test(buffer) && 'hjklwbeWBE'.includes(key)) {
-          const count = parseInt(buffer)
-          for (let i = 0; i < count; i++) {
-            handleVimMotion(key, '')
-          }
-          setInputBuffer('')
-          return
-        }
-        // Accumulate numbers
-        else if (/\d/.test(key)) {
-          setInputBuffer(buffer + key)
-          consumed = false
-        }
         else {
           // Unknown command, clear buffer
           setInputBuffer('')
@@ -428,7 +597,7 @@ export default function VimEditor({ onTargetReached }: VimEditorProps) {
     }
 
     if (consumed) {
-      addKeystroke()
+      addKeystroke(command)  // Pass the full command for analysis
       moveCursor(newPos)
       
       // Check if we reached the target

@@ -54,6 +54,9 @@ export const typingApi = {
   generateSnippet: (language: string) =>
     api.post('/typing/generate', { language }),
   
+  getVimChallenge: (language: string, targetCount: number = 5, weaknesses: string[] = []) =>
+    api.post('/typing/vim-challenge', { language, target_count: targetCount, weaknesses }),
+  
   getSnippets: (language: string, count: number = 3) =>
     api.get(`/typing/snippets?language=${language}&count=${count}`),
   
@@ -70,12 +73,28 @@ export const typingApi = {
     incorrect_chars: number
     test_duration: number
     lines_completed?: number
+    efficiency?: number
+    optimal_keystrokes?: number
+    actual_keystrokes?: number
+    weaknesses?: Record<string, number>
+    target_results?: Array<{
+      targetIndex: number
+      userKeys: string[]
+      timeTaken: number
+      efficiency: number
+      isOptimal: boolean
+      weakness?: string
+    }>
   }) => api.post('/typing/result', data),
   
   getResults: (page: number = 1, language?: string) =>
     api.get(`/typing/results?page=${page}${language ? `&language=${language}` : ''}`),
   
   getStats: () => api.get('/typing/stats'),
+  
+  getWeaknesses: () => api.get('/typing/weaknesses'),
+  
+  getTargetWeights: () => api.get('/typing/target-weights'),
 }
 
 export default api

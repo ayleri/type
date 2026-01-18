@@ -6,8 +6,23 @@ import { typingApi } from '../api'
 
 const LANGUAGES = ['python', 'javascript', 'typescript', 'rust', 'go', 'c']
 
-// Generate random targets within the code
-function generateTargets(lines: string[], count: number): Target[] {
+// Weakness-aware target generation
+interface UserWeakness {
+  type: string           // Backend uses 'type' not 'weakness_type'
+  count: number
+  label: string
+  tip: string
+  practice: string
+  severity: string
+}
+
+// Generate random targets within the code, optionally focusing on weaknesses
+function generateTargets(
+  lines: string[], 
+  count: number, 
+  startPos: Position = { line: 0, col: 0 },
+  weaknesses: UserWeakness[] = []
+): Target[] {
   const targets: Target[] = []
   const validPositions: Position[] = []
 
@@ -20,15 +35,116 @@ function generateTargets(lines: string[], count: number): Target[] {
     })
   })
 
-  // Shuffle and pick random positions
+  // If no weaknesses, use random selection
+  if (weaknesses.length === 0) {
+    return generateRandomTargets(validPositions, count)
+  }
+
+  // Score positions based on how well they target weaknesses
+  let currentPos = startPos
+  
+  for (let i = 0; i < count && validPositions.length > 0; i++) {
+    const scoredPositions = validPositions.map(pos => {
+      let score = 0
+      const lineDiff = Math.abs(pos.line - currentPos.line)
+      const colDiff = Math.abs(pos.col - currentPos.col)
+      
+      // Score based on weaknesses (using backend weakness types)
+      for (const weakness of weaknesses) {
+        // Higher count = more weight to practice this weakness
+        const weight = Math.min(weakness.count / 5, 3) // Cap at 3x multiplier
+        
+        switch (weakness.type) {
+          case 'slow_basic_movement':
+            // Prefer targets that require precise h/j/k/l movement
+            if (lineDiff <= 3 && colDiff <= 5) {
+              score += weight * 10
+            }
+            break
+          case 'missing_word_motions':
+            // Prefer targets at word boundaries
+            const line = lines[pos.line]
+            if (pos.col === 0 || /\s/.test(line[pos.col - 1] || '')) {
+              score += weight * 15
+            }
+            break
+          case 'missing_line_motions':
+            // Prefer line start/end positions
+            const lineLen = lines[pos.line].length
+            if (pos.col === 0 || pos.col >= lineLen - 2) {
+              score += weight * 15
+            }
+            break
+          case 'missing_find_motions':
+            // Prefer specific characters that benefit from f/t
+            const targetChar = lines[pos.line][pos.col]
+            if (/[(){}\[\]<>'"=:;,.]/.test(targetChar)) {
+              score += weight * 15
+            }
+            break
+          case 'missing_bracket_matching':
+            // Prefer matching bracket positions
+            const char = lines[pos.line][pos.col]
+            if (/[(){}\[\]]/.test(char)) {
+              score += weight * 20
+            }
+            break
+          case 'missing_paragraph_motions':
+            // Prefer targets on different lines (encourages } or { usage)
+            if (lineDiff >= 4) {
+              score += weight * 15
+            }
+            break
+          case 'missing_count_prefix':
+            // Prefer targets that would benefit from counted motions
+            if (lineDiff >= 3 || colDiff >= 5) {
+              score += weight * 12
+            }
+            break
+        }
+      }
+      
+      // Add some randomness to prevent predictable patterns
+      score += Math.random() * 5
+      
+      // Ensure minimum distance
+      const distance = lineDiff + colDiff
+      if (distance < 3) {
+        score -= 50
+      }
+      
+      return { pos, score }
+    })
+
+    // Sort by score and pick the best
+    scoredPositions.sort((a, b) => b.score - a.score)
+    
+    // Pick from top candidates with some randomness
+    const topCandidates = scoredPositions.slice(0, Math.max(3, Math.floor(scoredPositions.length * 0.2)))
+    const selected = topCandidates[Math.floor(Math.random() * topCandidates.length)]
+    
+    if (selected) {
+      targets.push({ position: selected.pos, completed: false })
+      currentPos = selected.pos
+      
+      // Remove selected position to avoid duplicates
+      const idx = validPositions.findIndex(p => p.line === selected.pos.line && p.col === selected.pos.col)
+      if (idx > -1) validPositions.splice(idx, 1)
+    }
+  }
+
+  return targets
+}
+
+// Original random target generation
+function generateRandomTargets(validPositions: Position[], count: number): Target[] {
+  const targets: Target[] = []
   const shuffled = [...validPositions].sort(() => Math.random() - 0.5)
   
-  // Make sure targets are spread out
   let lastPos: Position | null = null
   for (const pos of shuffled) {
     if (targets.length >= count) break
     
-    // Ensure minimum distance between targets
     if (lastPos) {
       const distance = Math.abs(pos.line - lastPos.line) + Math.abs(pos.col - lastPos.col)
       if (distance < 5) continue
@@ -44,18 +160,22 @@ function generateTargets(lines: string[], count: number): Target[] {
 export default function Game() {
   const { 
     language, 
-    lines,
     targets,
     isPlaying,
     isFinished,
     startTime,
     endTime,
     keystrokeCount,
+    optimalKeystrokes,
     targetsCompleted,
     currentTargetIndex,
+    targetResults,
+    sessionWeaknesses,
     setLanguage,
     initGame,
+    initGameWithSolutions,
     resetGame,
+    getSessionAnalysis,
   } = useGameStore()
 
   const { isAuthenticated } = useAuthStore()
@@ -65,9 +185,22 @@ export default function Game() {
   const [showResults, setShowResults] = useState(false)
   const [resultSaved, setResultSaved] = useState(false)
   const [currentTime, setCurrentTime] = useState(0)
-  const [useAI, setUseAI] = useState(false)
-  const [isAIGenerated, setIsAIGenerated] = useState(false)
+  const [userWeaknesses, setUserWeaknesses] = useState<UserWeakness[]>([])
+  const [practiceMode, setPracticeMode] = useState<'random' | 'weaknesses'>('random')
   const timerRef = useRef<number | null>(null)
+
+  // Fetch user weaknesses on auth change
+  useEffect(() => {
+    if (isAuthenticated) {
+      typingApi.getWeaknesses()
+        .then((res) => {
+          if (res.data?.weaknesses) {
+            setUserWeaknesses(res.data.weaknesses)
+          }
+        })
+        .catch(() => console.log('No weaknesses data yet'))
+    }
+  }, [isAuthenticated])
 
   // Timer effect - updates every 100ms while playing
   useEffect(() => {
@@ -98,19 +231,33 @@ export default function Game() {
     ? elapsedTime / targetsCompleted 
     : 0
 
-  // Load a new snippet
+  // Load a new snippet - always uses AI-generated challenges
   const loadNewGame = useCallback(async () => {
     setIsLoading(true)
     setShowResults(false)
     setResultSaved(false)
-    setIsAIGenerated(false)
     
     try {
-      const response = await typingApi.getSnippet(language, useAI)
-      const { lines: codeLines, ai_generated } = response.data
-      const generatedTargets = generateTargets(codeLines, targetCount)
-      initGame(codeLines, generatedTargets)
-      setIsAIGenerated(ai_generated || false)
+      // Use AI to generate code WITH optimal solutions
+      const weaknessTypes = practiceMode === 'weaknesses' 
+        ? userWeaknesses.map(w => w.type) 
+        : []
+      
+      const response = await typingApi.getVimChallenge(language, targetCount, weaknessTypes)
+      const { lines: codeLines, targets: aiTargets } = response.data
+      
+      // Convert AI targets to our format (they already have optimal solutions)
+      const targetsWithSolutions: Target[] = aiTargets.map((t: any) => ({
+        position: t.position,
+        completed: false,
+        optimalSolution: {
+          keys: [t.optimal_keys],
+          description: t.description,
+          category: 'count' as const
+        }
+      }))
+      
+      initGameWithSolutions(codeLines, targetsWithSolutions)
     } catch (error) {
       console.error('Failed to load snippet:', error)
       // Fallback code
@@ -120,17 +267,18 @@ export default function Game() {
         '    y = 20',
         '    return x + y',
       ]
-      const generatedTargets = generateTargets(fallbackCode, targetCount)
+      const weaknessesToUse = practiceMode === 'weaknesses' ? userWeaknesses : []
+      const generatedTargets = generateTargets(fallbackCode, targetCount, { line: 0, col: 0 }, weaknessesToUse)
       initGame(fallbackCode, generatedTargets)
     }
     
     setIsLoading(false)
-  }, [language, targetCount, useAI, initGame])
+  }, [language, targetCount, practiceMode, userWeaknesses, initGame, initGameWithSolutions])
 
-  // Load game on mount and language change
+  // Load game on mount, language change, or target count change
   useEffect(() => {
     loadNewGame()
-  }, [language])
+  }, [loadNewGame])
 
   // Show results when finished
   useEffect(() => {
@@ -144,6 +292,8 @@ export default function Game() {
     if (!isAuthenticated || resultSaved) return
     
     try {
+      const analysis = getSessionAnalysis()
+      
       await typingApi.saveResult({
         mode: 'vim',
         language,
@@ -154,6 +304,18 @@ export default function Game() {
         incorrect_chars: 0,
         test_duration: elapsedTime,
         lines_completed: targetsCompleted,
+        efficiency: analysis.totalEfficiency,
+        optimal_keystrokes: optimalKeystrokes,
+        actual_keystrokes: keystrokeCount,
+        weaknesses: sessionWeaknesses as Record<string, number>,
+        target_results: targetResults.map(r => ({
+          targetIndex: r.targetIndex,
+          userKeys: r.userKeys,
+          timeTaken: r.timeTaken,
+          efficiency: r.analysis.efficiency,
+          isOptimal: r.analysis.isOptimal,
+          weakness: r.analysis.weakness,
+        })),
       })
       setResultSaved(true)
     } catch (error) {
@@ -200,24 +362,26 @@ export default function Game() {
             </select>
           </div>
 
-          {/* AI Toggle */}
-          <div className="flex items-center gap-2">
-            <label className="text-vim-subtext text-sm">AI Code:</label>
-            <button
-              onClick={() => setUseAI(!useAI)}
-              disabled={isPlaying}
-              className={`px-3 py-2 rounded-lg border transition-colors disabled:opacity-50 ${
-                useAI 
-                  ? 'bg-vim-green/20 border-vim-green text-vim-green' 
-                  : 'bg-vim-surface border-vim-overlay text-vim-subtext hover:text-vim-text'
-              }`}
-            >
-              {useAI ? '✨ On' : 'Off'}
-            </button>
-            {isAIGenerated && (
-              <span className="text-vim-green text-xs">✨ AI Generated</span>
-            )}
-          </div>
+          {/* Practice Mode Toggle */}
+          {isAuthenticated && userWeaknesses.length > 0 && (
+            <div className="flex items-center gap-2">
+              <label className="text-vim-subtext text-sm">Mode:</label>
+              <button
+                onClick={() => setPracticeMode(practiceMode === 'random' ? 'weaknesses' : 'random')}
+                disabled={isPlaying}
+                className={`px-3 py-2 rounded-lg border transition-colors disabled:opacity-50 ${
+                  practiceMode === 'weaknesses'
+                    ? 'bg-vim-yellow/20 border-vim-yellow text-vim-yellow'
+                    : 'bg-vim-surface border-vim-overlay text-vim-subtext hover:text-vim-text'
+                }`}
+              >
+                {practiceMode === 'weaknesses' ? '🎯 Practice' : 'Random'}
+              </button>
+              {practiceMode === 'weaknesses' && (
+                <span className="text-vim-yellow text-xs">Targeting {userWeaknesses.length} weakness{userWeaknesses.length !== 1 ? 'es' : ''}</span>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Controls */}
@@ -329,29 +493,96 @@ export default function Game() {
       {/* Results Modal */}
       {showResults && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-vim-surface rounded-xl border border-vim-overlay p-8 max-w-md w-full mx-4">
+          <div className="bg-vim-surface rounded-xl border border-vim-overlay p-8 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
             <h2 className="text-2xl font-bold text-vim-green text-center mb-6">
               🎉 Race Complete!
             </h2>
             
-            <div className="space-y-4 mb-6">
-              <div className="flex justify-between items-center">
-                <span className="text-vim-subtext">Total Time</span>
-                <span className="text-vim-text text-xl font-bold">{elapsedTime.toFixed(2)}s</span>
+            {/* Main Stats */}
+            <div className="grid grid-cols-2 gap-4 mb-6">
+              <div className="bg-vim-bg/50 rounded-lg p-4 text-center">
+                <div className="text-vim-subtext text-sm">Total Time</div>
+                <div className="text-vim-text text-2xl font-bold">{elapsedTime.toFixed(2)}s</div>
               </div>
-              <div className="flex justify-between items-center">
-                <span className="text-vim-subtext">Targets Hit</span>
-                <span className="text-vim-green text-xl font-bold">{targetsCompleted}</span>
+              <div className="bg-vim-bg/50 rounded-lg p-4 text-center">
+                <div className="text-vim-subtext text-sm">Targets Hit</div>
+                <div className="text-vim-green text-2xl font-bold">{targetsCompleted}</div>
               </div>
-              <div className="flex justify-between items-center">
-                <span className="text-vim-subtext">Total Keystrokes</span>
-                <span className="text-vim-text text-xl font-bold">{keystrokeCount}</span>
+              <div className="bg-vim-bg/50 rounded-lg p-4 text-center">
+                <div className="text-vim-subtext text-sm">Keystrokes</div>
+                <div className="text-vim-text text-2xl font-bold">
+                  {keystrokeCount}
+                  {optimalKeystrokes > 0 && (
+                    <span className="text-vim-subtext text-sm ml-1">/ {optimalKeystrokes} optimal</span>
+                  )}
+                </div>
               </div>
-              <div className="flex justify-between items-center">
-                <span className="text-vim-subtext">Avg Time/Target</span>
-                <span className="text-vim-yellow text-xl font-bold">{avgTimePerTarget.toFixed(2)}s</span>
+              <div className="bg-vim-bg/50 rounded-lg p-4 text-center">
+                <div className="text-vim-subtext text-sm">Efficiency</div>
+                <div className={`text-2xl font-bold ${
+                  getSessionAnalysis().totalEfficiency >= 90 ? 'text-vim-green' :
+                  getSessionAnalysis().totalEfficiency >= 70 ? 'text-vim-yellow' : 'text-vim-red'
+                }`}>
+                  {getSessionAnalysis().totalEfficiency}%
+                </div>
               </div>
             </div>
+
+            {/* Target Breakdown */}
+            {targetResults.length > 0 && (
+              <div className="mb-6">
+                <h3 className="text-vim-text font-semibold mb-3">Target Breakdown</h3>
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {targetResults.map((result, idx) => (
+                    <div 
+                      key={idx} 
+                      className={`flex items-center justify-between p-2 rounded ${
+                        result.analysis.isOptimal ? 'bg-vim-green/10' : 'bg-vim-bg/50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="text-vim-subtext text-sm">#{idx + 1}</span>
+                        <div>
+                          <span className="text-vim-text text-sm">
+                            Your keys: <code className="bg-vim-bg px-1 rounded">{result.userKeys.join('')}</code>
+                          </span>
+                          {result.analysis.optimal && (
+                            <span className="text-vim-subtext text-sm ml-2">
+                              Optimal: <code className="bg-vim-green/20 text-vim-green px-1 rounded">
+                                {result.analysis.optimal.keys.join('')}
+                              </code>
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-sm ${
+                          result.analysis.isOptimal ? 'text-vim-green' : 'text-vim-yellow'
+                        }`}>
+                          {result.analysis.efficiency}%
+                        </span>
+                        {result.analysis.isOptimal && <span className="text-vim-green">✓</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Recommendations */}
+            {getSessionAnalysis().recommendations.length > 0 && (
+              <div className="mb-6 bg-vim-yellow/10 border border-vim-yellow/30 rounded-lg p-4">
+                <h3 className="text-vim-yellow font-semibold mb-2">💡 Tips to Improve</h3>
+                <ul className="space-y-1">
+                  {getSessionAnalysis().recommendations.map((rec, idx) => (
+                    <li key={idx} className="text-vim-text text-sm flex items-start gap-2">
+                      <span className="text-vim-yellow">•</span>
+                      {rec}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             <div className="space-y-3">
               {isAuthenticated && !resultSaved && (
@@ -386,45 +617,6 @@ export default function Game() {
           </div>
         </div>
       )}
-
-      {/* Vim Commands Reference */}
-      <div className="bg-vim-surface rounded-lg border border-vim-overlay p-6">
-        <h3 className="text-lg font-semibold text-vim-text mb-4">Vim Motions</h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-          <div>
-            <kbd className="bg-vim-bg px-2 py-1 rounded text-vim-green">h j k l</kbd>
-            <span className="text-vim-subtext ml-2">Move</span>
-          </div>
-          <div>
-            <kbd className="bg-vim-bg px-2 py-1 rounded text-vim-green">w b e</kbd>
-            <span className="text-vim-subtext ml-2">Words</span>
-          </div>
-          <div>
-            <kbd className="bg-vim-bg px-2 py-1 rounded text-vim-green">0 $ ^</kbd>
-            <span className="text-vim-subtext ml-2">Line</span>
-          </div>
-          <div>
-            <kbd className="bg-vim-bg px-2 py-1 rounded text-vim-green">gg G</kbd>
-            <span className="text-vim-subtext ml-2">File</span>
-          </div>
-          <div>
-            <kbd className="bg-vim-bg px-2 py-1 rounded text-vim-green">f{'{c}'}</kbd>
-            <span className="text-vim-subtext ml-2">Find char</span>
-          </div>
-          <div>
-            <kbd className="bg-vim-bg px-2 py-1 rounded text-vim-green">t{'{c}'}</kbd>
-            <span className="text-vim-subtext ml-2">Till char</span>
-          </div>
-          <div>
-            <kbd className="bg-vim-bg px-2 py-1 rounded text-vim-green">F{'{c}'}</kbd>
-            <span className="text-vim-subtext ml-2">Find back</span>
-          </div>
-          <div>
-            <kbd className="bg-vim-bg px-2 py-1 rounded text-vim-green">{'{n}'}j</kbd>
-            <span className="text-vim-subtext ml-2">Repeat</span>
-          </div>
-        </div>
-      </div>
     </div>
   )
 }

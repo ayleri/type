@@ -22,10 +22,29 @@ interface Stats {
   }
 }
 
+interface WeaknessData {
+  type: string
+  count: number
+  label: string
+  tip: string
+  practice: string
+  severity: 'high' | 'medium' | 'low'
+}
+
+interface WeaknessResponse {
+  weaknesses: WeaknessData[]
+  avg_efficiency: number
+  total_vim_tests: number
+  trend: number
+  recommendations: string[]
+  weakness_counts: Record<string, number>
+}
+
 export default function Stats() {
   const { isAuthenticated, user } = useAuthStore()
   const [results, setResults] = useState<Result[]>([])
   const [stats, setStats] = useState<Stats>({})
+  const [weaknesses, setWeaknesses] = useState<WeaknessResponse | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [selectedLanguage, setSelectedLanguage] = useState<string>('')
 
@@ -40,17 +59,33 @@ export default function Stats() {
   const loadStats = async () => {
     setIsLoading(true)
     try {
-      const [statsRes, resultsRes] = await Promise.all([
+      const [statsRes, resultsRes, weaknessesRes] = await Promise.all([
         typingApi.getStats(),
         typingApi.getResults(1),
+        typingApi.getWeaknesses(),
       ])
       
       setStats(statsRes.data.stats_by_language || {})
       setResults(resultsRes.data.results || [])
+      setWeaknesses(weaknessesRes.data || null)
     } catch (error) {
       console.error('Failed to load stats:', error)
     }
     setIsLoading(false)
+  }
+
+  const getWeaknessIcon = (type: string) => {
+    const icons: { [key: string]: string } = {
+      slow_basic_movement: '←→',
+      missing_word_motions: 'wbe',
+      missing_find_motions: 'f/t',
+      missing_line_motions: '0$^',
+      missing_count_prefix: '5j',
+      missing_paragraph_motions: '{}',
+      missing_bracket_matching: '%',
+      inefficient_path: '⤵',
+    }
+    return icons[type] || '?'
   }
 
   if (!isAuthenticated) {
@@ -147,6 +182,88 @@ export default function Stats() {
           >
             Start Racing
           </Link>
+        </div>
+      )}
+
+      {/* Weakness Analysis */}
+      {weaknesses && weaknesses.weaknesses.length > 0 && (
+        <div className="bg-vim-surface rounded-xl border border-vim-overlay p-6">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h2 className="text-xl font-semibold text-vim-text">Vim Motion Weaknesses</h2>
+              <p className="text-vim-subtext text-sm mt-1">
+                Average efficiency: <span className="text-vim-green font-bold">{weaknesses.avg_efficiency}%</span>
+                {weaknesses.trend !== 0 && (
+                  <span className={`ml-2 ${weaknesses.trend > 0 ? 'text-vim-green' : 'text-vim-red'}`}>
+                    {weaknesses.trend > 0 ? '↑' : '↓'} {Math.abs(weaknesses.trend).toFixed(1)}%
+                  </span>
+                )}
+              </p>
+            </div>
+            <span className="text-vim-subtext text-sm">
+              Based on {weaknesses.total_vim_tests} tests
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+            {weaknesses.weaknesses.map((weakness) => (
+              <div
+                key={weakness.type}
+                className={`bg-vim-bg rounded-lg border p-4 ${
+                  weakness.severity === 'high' 
+                    ? 'border-vim-red/50' 
+                    : weakness.severity === 'medium' 
+                      ? 'border-vim-yellow/50' 
+                      : 'border-vim-overlay'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-2xl font-mono">{getWeaknessIcon(weakness.type)}</span>
+                  <span className={`text-xs px-2 py-1 rounded ${
+                    weakness.severity === 'high'
+                      ? 'bg-vim-red/20 text-vim-red'
+                      : weakness.severity === 'medium'
+                        ? 'bg-vim-yellow/20 text-vim-yellow'
+                        : 'bg-vim-green/20 text-vim-green'
+                  }`}>
+                    {weakness.severity}
+                  </span>
+                </div>
+                <h3 className="text-vim-text font-medium mb-1">
+                  {weakness.label}
+                </h3>
+                <p className="text-vim-subtext text-xs">
+                  {weakness.count} occurrence{weakness.count !== 1 ? 's' : ''}
+                </p>
+                <p className="text-vim-green text-xs mt-2">
+                  💡 {weakness.tip}
+                </p>
+                <p className="text-vim-subtext text-xs mt-1 italic">
+                  {weakness.practice}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          {weaknesses.recommendations.length > 0 && (
+            <div className="border-t border-vim-overlay pt-4">
+              <h3 className="text-vim-text font-medium mb-3">Top Recommendations</h3>
+              <ul className="space-y-2">
+                {weaknesses.recommendations.map((rec, i) => (
+                  <li key={i} className="flex items-start gap-2 text-vim-subtext text-sm">
+                    <span className="text-vim-yellow">→</span>
+                    {rec}
+                  </li>
+                ))}
+              </ul>
+              <Link
+                to="/play"
+                className="inline-flex mt-4 bg-vim-green text-vim-bg px-4 py-2 rounded-lg text-sm font-medium hover:bg-vim-green/90 transition-colors"
+              >
+                Practice Weaknesses
+              </Link>
+            </div>
+          )}
         </div>
       )}
 
