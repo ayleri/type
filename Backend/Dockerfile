@@ -13,4 +13,5 @@ COPY . .
 EXPOSE 8080
 
 # Use gunicorn for production
+# Using 1 worker for free tier optimization; increase workers for production load
 CMD exec gunicorn --bind :8080 --workers 1 --threads 8 --timeout 0 run:app
