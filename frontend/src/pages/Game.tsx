@@ -299,7 +299,7 @@ export default function Game() {
         language,
         wpm: Math.round(60 / avgTimePerTarget), // Approximate WPM based on targets/time
         raw_wpm: Math.round(60 / avgTimePerTarget),
-        accuracy: 100, // In vim racer, you must reach exact position
+        accuracy: 100, // In typrace, you must reach exact position
         correct_chars: keystrokeCount,
         incorrect_chars: 0,
         test_duration: elapsedTime,

@@ -65,7 +65,7 @@ export default function Home() {
           <div className="w-3 h-3 rounded-full bg-vim-red"></div>
           <div className="w-3 h-3 rounded-full bg-vim-yellow"></div>
           <div className="w-3 h-3 rounded-full bg-vim-green"></div>
-          <span className="ml-2 text-vim-subtext text-sm">vim-racer</span>
+          <span className="ml-2 text-vim-subtext text-sm">typrace</span>
         </div>
         <pre className="text-sm leading-relaxed">
           <code>
@@ -102,7 +102,7 @@ export default function Home() {
 
       {/* Features */}
       <section>
-        <h2 className="text-2xl font-bold text-vim-text text-center mb-8">Why Vim Racer?</h2>
+        <h2 className="text-2xl font-bold text-vim-text text-center mb-8">Why Typrace?</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {features.map((feature, idx) => (
             <div

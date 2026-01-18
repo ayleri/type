@@ -33,10 +33,10 @@ export default function Layout() {
             {/* Logo */}
             <Link to="/" className="flex items-center gap-3">
               <div className="w-10 h-10 bg-vim-surface rounded-lg flex items-center justify-center">
-                <span className="text-vim-green font-bold text-xl">V</span>
+                <span className="text-vim-green font-bold text-xl">T</span>
               </div>
               <span className="text-xl font-bold text-vim-text">
-                Vim<span className="text-vim-green">Racer</span>
+                Typ<span className="text-vim-green">race</span>
               </span>
             </Link>
 
