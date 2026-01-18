@@ -100,7 +100,7 @@ export default function Type() {
         {/* Header */}
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-vim-text mb-2">
-            {testMode === 'practice' ? '🎯 Weakness Practice' : 'Typing Test'}
+            {testMode === 'practice' ? 'Weakness Practice' : 'Typing Test'}
           </h1>
           <p className="text-vim-subtext">
             {testMode === 'practice' 
@@ -251,7 +251,7 @@ export default function Type() {
                     onClick={copyAnalytics}
                     className="px-4 py-2 bg-vim-surface hover:bg-vim-overlay rounded-lg text-vim-subtext hover:text-vim-text transition-colors text-sm"
                   >
-                    📋 Copy JSON
+                    Copy JSON
                   </button>
                 </div>
                 

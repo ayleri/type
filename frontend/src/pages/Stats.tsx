@@ -324,7 +324,7 @@ export default function Stats() {
                   {weakness.count} occurrence{weakness.count !== 1 ? 's' : ''}
                 </p>
                 <p className="text-vim-green text-xs mt-2">
-                  💡 {weakness.tip}
+                  {weakness.tip}
                 </p>
                 <p className="text-vim-subtext text-xs mt-1 italic">
                   {weakness.practice}
@@ -476,14 +476,9 @@ export default function Stats() {
                         className="px-6 py-3 bg-vim-mauve text-vim-base rounded-lg font-medium hover:bg-vim-mauve/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                       >
                         {isGeneratingPractice ? (
-                          <>
-                            <span className="animate-spin">⏳</span>
-                            Generating...
-                          </>
+                          <>Generating...</>
                         ) : (
-                          <>
-                            🎯 Practice Now
-                          </>
+                          <>Practice Now</>
                         )}
                       </button>
                     </div>
@@ -493,9 +488,7 @@ export default function Stats() {
                 {/* Words Mode Section */}
                 {typingAnalytics.words_mode && typingAnalytics.words_mode.history.length > 0 && (
                   <div className="bg-vim-surface rounded-xl border border-vim-overlay p-6">
-                    <h3 className="text-xl font-semibold text-vim-text mb-4 flex items-center gap-2">
-                      <span className="text-vim-green">📝</span> Words Mode
-                    </h3>
+                    <h3 className="text-xl font-semibold text-vim-text mb-4">Words Mode</h3>
                     <div className="grid grid-cols-3 gap-4 mb-4">
                       <div className="bg-vim-base rounded-lg p-4 text-center">
                         <div className="text-2xl font-bold text-vim-mauve">{typingAnalytics.words_mode.stats.best_wpm}</div>
@@ -540,9 +533,7 @@ export default function Stats() {
                 {/* Code Mode Section */}
                 {typingAnalytics.code_mode && typingAnalytics.code_mode.history.length > 0 ? (
                   <div className="bg-vim-surface rounded-xl border border-vim-overlay p-6">
-                    <h3 className="text-xl font-semibold text-vim-text mb-4 flex items-center gap-2">
-                      <span className="text-vim-mauve">💻</span> Code Mode
-                    </h3>
+                    <h3 className="text-xl font-semibold text-vim-text mb-4">Code Mode</h3>
                     <div className="grid grid-cols-3 gap-4 mb-4">
                       <div className="bg-vim-base rounded-lg p-4 text-center">
                         <div className="text-2xl font-bold text-vim-mauve">{typingAnalytics.code_mode.stats.best_wpm}</div>
@@ -586,9 +577,7 @@ export default function Stats() {
                   </div>
                 ) : (
                   <div className="bg-vim-surface rounded-xl border border-vim-overlay p-6">
-                    <h3 className="text-xl font-semibold text-vim-text mb-4 flex items-center gap-2">
-                      <span className="text-vim-mauve">💻</span> Code Mode
-                    </h3>
+                    <h3 className="text-xl font-semibold text-vim-text mb-4">Code Mode</h3>
                     <div className="text-center py-4">
                       <p className="text-vim-subtext mb-3">No code mode tests yet.</p>
                       <Link

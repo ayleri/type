@@ -3,22 +3,22 @@ import { Link } from 'react-router-dom'
 export default function Home() {
   const features = [
     {
-      icon: '⌨️',
+      icon: 'Keyboard',
       title: 'Navigation',
       description: 'Practice essential Vim navigation commands like h, j, k, l, w, b, f, and more',
     },
     {
-      icon: '🎯',
+      icon: 'Target',
       title: 'Target Practice',
       description: 'Navigate to highlighted targets in real code as fast as possible',
     },
     {
-      icon: '📊',
+      icon: 'Stats',
       title: 'Track Progress',
       description: 'Monitor your speed improvements across different languages',
     },
     {
-      icon: '💻',
+      icon: 'Code',
       title: 'Real Code',
       description: 'Practice with actual code snippets in Python, JavaScript, Rust, and more',
     },

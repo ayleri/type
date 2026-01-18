@@ -56,8 +56,7 @@ export default function HelpModal({ isOpen, onClose }: HelpModalProps) {
         <div className="p-6 space-y-8">
           {/* General Shortcuts Section */}
           <section>
-            <h3 className="text-xl font-semibold text-vim-text mb-4 flex items-center gap-2">
-              <span className="text-vim-yellow">⌨️</span>
+            <h3 className="text-xl font-semibold text-vim-text mb-4">
               General Keyboard Shortcuts
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -69,8 +68,7 @@ export default function HelpModal({ isOpen, onClose }: HelpModalProps) {
 
           {/* Vim Motions Section */}
           <section>
-            <h3 className="text-xl font-semibold text-vim-text mb-4 flex items-center gap-2">
-              <span className="text-vim-blue">📝</span>
+            <h3 className="text-xl font-semibold text-vim-text mb-4">
               Vim Navigation Motions
             </h3>
             
@@ -150,7 +148,7 @@ export default function HelpModal({ isOpen, onClose }: HelpModalProps) {
           {/* Pro Tip */}
           <section className="bg-vim-overlay/30 rounded-lg p-4 border border-vim-overlay">
             <p className="text-vim-subtext text-sm">
-              <span className="text-vim-yellow font-semibold">💡 Pro Tip:</span> Many Vim motions can be prefixed with a count (e.g., <kbd className="bg-vim-surface px-2 py-1 rounded text-vim-green text-xs">5j</kbd> moves down 5 lines, <kbd className="bg-vim-surface px-2 py-1 rounded text-vim-green text-xs">3w</kbd> moves forward 3 words).
+              <span className="text-vim-yellow font-semibold">Pro Tip:</span> Many Vim motions can be prefixed with a count (e.g., <kbd className="bg-vim-surface px-2 py-1 rounded text-vim-green text-xs">5j</kbd> moves down 5 lines, <kbd className="bg-vim-surface px-2 py-1 rounded text-vim-green text-xs">3w</kbd> moves forward 3 words).
             </p>
           </section>
         </div>

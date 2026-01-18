@@ -375,7 +375,7 @@ export default function Game() {
                     : 'bg-vim-surface border-vim-overlay text-vim-subtext hover:text-vim-text'
                 }`}
               >
-                {practiceMode === 'weaknesses' ? '🎯 Practice' : 'Random'}
+                {practiceMode === 'weaknesses' ? 'Practice' : 'Random'}
               </button>
               {practiceMode === 'weaknesses' && (
                 <span className="text-vim-yellow text-xs">Targeting {userWeaknesses.length} weakness{userWeaknesses.length !== 1 ? 'es' : ''}</span>
@@ -495,7 +495,7 @@ export default function Game() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-vim-surface rounded-xl border border-vim-overlay p-8 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
             <h2 className="text-2xl font-bold text-vim-green text-center mb-6">
-              🎉 Race Complete!
+              Race Complete!
             </h2>
             
             {/* Main Stats */}
@@ -572,7 +572,7 @@ export default function Game() {
             {/* Recommendations */}
             {getSessionAnalysis().recommendations.length > 0 && (
               <div className="mb-6 bg-vim-yellow/10 border border-vim-yellow/30 rounded-lg p-4">
-                <h3 className="text-vim-yellow font-semibold mb-2">💡 Tips to Improve</h3>
+                <h3 className="text-vim-yellow font-semibold mb-2">Tips to Improve</h3>
                 <ul className="space-y-1">
                   {getSessionAnalysis().recommendations.map((rec, idx) => (
                     <li key={idx} className="text-vim-text text-sm flex items-start gap-2">
