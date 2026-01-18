@@ -1,10 +1,10 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import TypingTest from '../components/TypingTest'
 import { useTypingAnalyticsStore } from '../stores/typingAnalyticsStore'
 import { useAuthStore } from '../stores/authStore'
 import { typingApi } from '../api'
 
-type TestMode = 'words' | 'code'
+type TestMode = 'words' | 'code' | 'practice'
 const LANGUAGES = ['javascript', 'python', 'typescript', 'rust', 'go'] as const
 
 export default function Type() {
@@ -14,6 +14,26 @@ export default function Type() {
   const [language, setLanguage] = useState<string>('javascript')
   const [resultSaved, setResultSaved] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [practiceWords, setPracticeWords] = useState<string[] | null>(null)
+  
+  // Check for practice words from Stats page
+  useEffect(() => {
+    const storedWords = sessionStorage.getItem('practiceWords')
+    const storedMode = sessionStorage.getItem('practiceMode')
+    
+    if (storedWords && storedMode === 'weakness') {
+      try {
+        const words = JSON.parse(storedWords)
+        setPracticeWords(words)
+        setTestMode('practice')
+        // Clear after loading
+        sessionStorage.removeItem('practiceWords')
+        sessionStorage.removeItem('practiceMode')
+      } catch (e) {
+        console.error('Failed to parse practice words:', e)
+      }
+    }
+  }, [])
   
   const {
     isFinished,
@@ -53,6 +73,8 @@ export default function Type() {
     
     setSaving(true)
     try {
+      // Map practice mode to words for storage
+      const storageMode = testMode === 'practice' ? 'words' : testMode
       await typingApi.saveTypingAnalytics({
         wpm,
         raw_wpm: rawWpm,
@@ -61,7 +83,7 @@ export default function Type() {
         keystrokes: keystrokes.length,
         correct_keystrokes: keystrokes.filter(k => k.correct).length,
         words_typed: wordAttempts.length,
-        test_mode: testMode,
+        test_mode: storageMode,
         language: testMode === 'code' ? language : undefined,
         analytics,
       })
@@ -77,12 +99,36 @@ export default function Type() {
       <div className="max-w-5xl mx-auto">
         {/* Header */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-vim-text mb-2">Typing Test</h1>
-          <p className="text-vim-subtext">Track your typing speed and identify weaknesses</p>
+          <h1 className="text-3xl font-bold text-vim-text mb-2">
+            {testMode === 'practice' ? '🎯 Weakness Practice' : 'Typing Test'}
+          </h1>
+          <p className="text-vim-subtext">
+            {testMode === 'practice' 
+              ? 'AI-generated text targeting your problem areas' 
+              : 'Track your typing speed and identify weaknesses'}
+          </p>
         </div>
         
+        {/* Practice mode banner */}
+        {testMode === 'practice' && !isFinished && (
+          <div className="bg-vim-mauve/20 border border-vim-mauve/30 rounded-lg p-4 mb-6 text-center">
+            <p className="text-vim-text">
+              This practice session is tailored to your weaknesses. 
+              <button 
+                onClick={() => {
+                  setTestMode('words')
+                  setPracticeWords(null)
+                }}
+                className="text-vim-mauve hover:underline ml-2"
+              >
+                Switch to regular mode
+              </button>
+            </p>
+          </div>
+        )}
+        
         {/* Settings bar */}
-        {!isFinished && (
+        {!isFinished && testMode !== 'practice' && (
           <div className="flex flex-col items-center gap-4 mb-8">
             {/* Mode selector */}
             <div className="flex items-center gap-2 bg-vim-surface rounded-lg p-1">
@@ -107,7 +153,6 @@ export default function Type() {
                 Code
               </button>
             </div>
-            
             {/* Language selector (only for code mode) */}
             {testMode === 'code' && (
               <div className="flex items-center gap-2 bg-vim-surface rounded-lg p-1">
@@ -153,6 +198,7 @@ export default function Type() {
             timeLimit={timeLimit} 
             mode={testMode}
             language={language}
+            practiceWords={practiceWords || undefined}
           />
         ) : (
           <div className="space-y-6">
@@ -238,11 +284,11 @@ export default function Type() {
                   </div>
                 )}
                 
-                {/* Problem Words */}
+                {/* Problem Words / Lines */}
                 {analytics.problem_words.length > 0 && (
                   <div className="bg-vim-surface rounded-lg p-6 border border-vim-overlay">
                     <h3 className="text-lg font-semibold text-vim-text mb-4">
-                      Problem Words
+                      {testMode === 'code' ? 'Problem Lines' : 'Problem Words'}
                     </h3>
                     <div className="space-y-2">
                       {analytics.problem_words.map((word, i) => (
@@ -250,7 +296,7 @@ export default function Type() {
                           key={i}
                           className="flex items-center justify-between bg-vim-base rounded-lg p-3"
                         >
-                          <span className="font-mono text-vim-text">{word.word}</span>
+                          <span className="font-mono text-vim-text truncate max-w-[60%]">{word.word}</span>
                           <div className="flex items-center gap-4 text-sm">
                             <span className="text-vim-subtext">
                               {word.attempts} attempts

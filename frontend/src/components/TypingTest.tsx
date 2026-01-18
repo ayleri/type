@@ -5,15 +5,17 @@ import { typingApi } from '../api'
 interface TypingTestProps {
   onFinish?: () => void
   timeLimit?: number
-  mode?: 'words' | 'code'
+  mode?: 'words' | 'code' | 'practice'
   language?: string
+  practiceWords?: string[]
 }
 
 export default function TypingTest({ 
   onFinish, 
   timeLimit: timeLimitProp = 60,
   mode = 'words',
-  language = 'javascript'
+  language = 'javascript',
+  practiceWords: practiceWordsProp
 }: TypingTestProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [timeLeft, setTimeLeft] = useState(timeLimitProp)
@@ -86,13 +88,16 @@ export default function TypingTest({
   useEffect(() => {
     if (mode === 'code') {
       fetchCode()
+    } else if (mode === 'practice' && practiceWordsProp) {
+      // Use provided practice words
+      initTest(practiceWordsProp, timeLimitProp)
     } else {
       initTest([], timeLimitProp)
     }
     setCurrentLineIndex(0)
     setCurrentLineInput('')
     setCompletedLines([])
-  }, [mode, language, initTest, fetchCode])
+  }, [mode, language, initTest, fetchCode, practiceWordsProp])
   
   // Update timer when timeLimitProp changes (without refetching code)
   useEffect(() => {
@@ -507,13 +512,14 @@ export default function TypingTest({
         </div>
       ) : (
         <>
-          {/* Words display (for words mode) */}
+          {/* Words display (for words mode and practice mode) */}
           <div 
             className="bg-vim-surface rounded-lg p-6 mb-4 min-h-[200px] cursor-text border border-vim-overlay"
             onClick={() => inputRef.current?.focus()}
           >
             <div className="text-2xl leading-relaxed font-mono flex flex-wrap">
-              {words.slice(0, Math.min(currentWordIndex + 30, words.length)).map((word, index) => 
+              {/* In practice mode, show all words; otherwise show current + 30 ahead */}
+              {(mode === 'practice' ? words : words.slice(0, Math.min(currentWordIndex + 30, words.length))).map((word, index) => 
                 renderWord(word, index)
               )}
             </div>
@@ -540,6 +546,8 @@ export default function TypingTest({
         <div className="text-center text-vim-subtext">
           {mode === 'code' 
             ? 'Type each line exactly as shown, press Enter to move to the next line'
+            : mode === 'practice'
+            ? 'Type the practice text targeting your weaknesses. Click and start typing to begin.'
             : 'Click and start typing to begin the test'
           }
         </div>

@@ -101,6 +101,13 @@ export const typingApi = {
   // Generate code for typing test
   generateTypingCode: (language: string) =>
     api.post('/typing/generate-typing-code', { language }),
+  
+  // Generate personalized practice text based on weaknesses
+  generatePracticeText: (analytics: {
+    problem_character_pairs: Array<{ pair: string; avg_ms: number; errors: number }>
+    problem_words: Array<{ word: string; attempts: number; errors: number; error_rate?: number; avg_wpm?: number }>
+    difficult_finger_transitions: Array<{ type: string; avg_ms: number; errors: number; severity: string }>
+  }) => api.post('/typing/generate-practice-text', analytics),
 }
 
 export default api

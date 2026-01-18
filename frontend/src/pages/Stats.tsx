@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useAuthStore } from '../stores/authStore'
 import { typingApi } from '../api'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 
 interface Result {
   id: string
@@ -64,6 +64,7 @@ interface TypingAnalyticsResponse {
 
 export default function Stats() {
   const { isAuthenticated, user } = useAuthStore()
+  const navigate = useNavigate()
   const [results, setResults] = useState<Result[]>([])
   const [stats, setStats] = useState<Stats>({})
   const [weaknesses, setWeaknesses] = useState<WeaknessResponse | null>(null)
@@ -71,6 +72,7 @@ export default function Stats() {
   const [isLoading, setIsLoading] = useState(true)
   const [selectedLanguage, setSelectedLanguage] = useState<string>('')
   const [activeTab, setActiveTab] = useState<'vim' | 'typing'>('vim')
+  const [isGeneratingPractice, setIsGeneratingPractice] = useState(false)
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -98,6 +100,39 @@ export default function Stats() {
       console.error('Failed to load stats:', error)
     }
     setIsLoading(false)
+  }
+
+  const practiceWeaknesses = async () => {
+    if (!typingAnalytics) return
+    
+    setIsGeneratingPractice(true)
+    try {
+      const response = await typingApi.generatePracticeText({
+        problem_character_pairs: typingAnalytics.problem_character_pairs.map(p => ({
+          pair: p.pair,
+          avg_ms: p.avg_ms,
+          errors: p.errors
+        })),
+        problem_words: typingAnalytics.problem_words.map(w => ({
+          word: w.word,
+          attempts: w.attempts,
+          errors: w.errors,
+          avg_wpm: 0
+        })),
+        difficult_finger_transitions: typingAnalytics.difficult_finger_transitions
+      })
+      
+      if (response.data.words) {
+        // Store the practice words in sessionStorage and navigate to type page
+        sessionStorage.setItem('practiceWords', JSON.stringify(response.data.words))
+        sessionStorage.setItem('practiceMode', 'weakness')
+        navigate('/type')
+      }
+    } catch (error) {
+      console.error('Failed to generate practice text:', error)
+      alert('Failed to generate practice text. Please try again.')
+    }
+    setIsGeneratingPractice(false)
   }
 
   const getWeaknessIcon = (type: string) => {
@@ -422,6 +457,38 @@ export default function Stats() {
                     <div className="text-vim-subtext">Avg Accuracy</div>
                   </div>
                 </div>
+
+                {/* Practice Weaknesses Button */}
+                {(typingAnalytics.problem_character_pairs.length > 0 || 
+                  typingAnalytics.problem_words.length > 0 || 
+                  typingAnalytics.difficult_finger_transitions.length > 0) && (
+                  <div className="bg-gradient-to-r from-vim-mauve/20 to-vim-green/20 rounded-xl border border-vim-mauve/30 p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="text-lg font-semibold text-vim-text mb-1">Practice Your Weaknesses</h3>
+                        <p className="text-vim-subtext text-sm">
+                          Get AI-generated practice text tailored to your problem areas
+                        </p>
+                      </div>
+                      <button
+                        onClick={practiceWeaknesses}
+                        disabled={isGeneratingPractice}
+                        className="px-6 py-3 bg-vim-mauve text-vim-base rounded-lg font-medium hover:bg-vim-mauve/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                      >
+                        {isGeneratingPractice ? (
+                          <>
+                            <span className="animate-spin">⏳</span>
+                            Generating...
+                          </>
+                        ) : (
+                          <>
+                            🎯 Practice Now
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 {/* Words Mode Section */}
                 {typingAnalytics.words_mode && typingAnalytics.words_mode.history.length > 0 && (

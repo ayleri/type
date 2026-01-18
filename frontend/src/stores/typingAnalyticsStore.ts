@@ -332,19 +332,19 @@ export const useTypingAnalyticsStore = create<TypingAnalyticsState>((set, get) =
           newFingerTransitions.sameFinger = {
             totalMs: newFingerTransitions.sameFinger.totalMs + timeDiff,
             count: newFingerTransitions.sameFinger.count + 1,
-            errors: newFingerTransitions.sameFinger.errors, // Don't increment here
+            errors: newFingerTransitions.sameFinger.errors + (isCorrect ? 0 : 1),
           }
         } else if (isSameHand(prevFinger, currFinger)) {
           newFingerTransitions.sameHand = {
             totalMs: newFingerTransitions.sameHand.totalMs + timeDiff,
             count: newFingerTransitions.sameHand.count + 1,
-            errors: newFingerTransitions.sameHand.errors, // Don't increment here
+            errors: newFingerTransitions.sameHand.errors + (isCorrect ? 0 : 1),
           }
         } else {
           newFingerTransitions.crossHand = {
             totalMs: newFingerTransitions.crossHand.totalMs + timeDiff,
             count: newFingerTransitions.crossHand.count + 1,
-            errors: newFingerTransitions.crossHand.errors, // Don't increment here
+            errors: newFingerTransitions.crossHand.errors + (isCorrect ? 0 : 1),
           }
         }
         
@@ -442,9 +442,6 @@ export const useTypingAnalyticsStore = create<TypingAnalyticsState>((set, get) =
     const totalMs = ft.sameFinger.totalMs + ft.sameHand.totalMs + ft.crossHand.totalMs
     const overallAvgMs = totalTransitions > 0 ? totalMs / totalTransitions : 200
     
-    // Calculate total word errors for display
-    const totalWordErrors = state.wordAttempts.reduce((sum, a) => sum + a.errors, 0)
-    
     if (ft.sameFinger.count > 0) {
       const avgMs = Math.round(ft.sameFinger.totalMs / ft.sameFinger.count)
       // Same finger is usually slowest, severity based on how much slower than baseline
@@ -452,7 +449,7 @@ export const useTypingAnalyticsStore = create<TypingAnalyticsState>((set, get) =
       fingerTransitions.push({
         type: 'same_finger',
         avg_ms: avgMs,
-        errors: totalWordErrors, // Show total word errors for context
+        errors: ft.sameFinger.errors,
         severity: slowRatio > 1.3 ? 'high' : slowRatio > 1.1 ? 'medium' : 'low',
       })
     }
@@ -463,7 +460,7 @@ export const useTypingAnalyticsStore = create<TypingAnalyticsState>((set, get) =
       fingerTransitions.push({
         type: 'same_hand',
         avg_ms: avgMs,
-        errors: totalWordErrors,
+        errors: ft.sameHand.errors,
         severity: slowRatio > 1.3 ? 'high' : slowRatio > 1.1 ? 'medium' : 'low',
       })
     }
@@ -474,7 +471,7 @@ export const useTypingAnalyticsStore = create<TypingAnalyticsState>((set, get) =
       fingerTransitions.push({
         type: 'cross_hand',
         avg_ms: avgMs,
-        errors: totalWordErrors,
+        errors: ft.crossHand.errors,
         severity: slowRatio > 1.3 ? 'high' : slowRatio > 1.1 ? 'medium' : 'low',
       })
     }

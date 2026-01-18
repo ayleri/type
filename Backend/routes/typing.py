@@ -852,3 +852,108 @@ def get_typing_analytics():
         'history': words_history + code_history,
     }), 200
 
+
+# Gumloop API configuration
+GUMLOOP_API_KEY = os.environ.get('GUMLOOP_API_KEY', '19f2a2bb2667423aa2d8c1306e31820e')
+GUMLOOP_FLOW_ID = os.environ.get('GUMLOOP_FLOW_ID', 'sPQhausL3s1SU4SjjHsCaS')
+GUMLOOP_USER_ID = os.environ.get('GUMLOOP_USER_ID', 'o2guyeN2soU42AV1oD38pySunWJ3')
+
+
+@typing_bp.route('/generate-practice-text', methods=['POST'])
+@jwt_required()
+def generate_practice_text():
+    """Generate personalized practice text based on user weaknesses using Gumloop."""
+    import requests
+    import time
+    
+    data = request.get_json()
+    
+    if not data:
+        return jsonify({'error': 'No analytics data provided'}), 400
+    
+    # Format the analytics data for Gumloop
+    analytics_input = {
+        'problem_character_pairs': data.get('problem_character_pairs', []),
+        'problem_words': data.get('problem_words', []),
+        'difficult_finger_transitions': data.get('difficult_finger_transitions', [])
+    }
+    
+    try:
+        # Start the Gumloop pipeline
+        start_response = requests.post(
+            'https://api.gumloop.com/api/v1/start_pipeline',
+            headers={
+                'Authorization': f'Bearer {GUMLOOP_API_KEY}',
+                'Content-Type': 'application/json'
+            },
+            json={
+                'user_id': GUMLOOP_USER_ID,
+                'saved_item_id': GUMLOOP_FLOW_ID,
+                'pipeline_inputs': [
+                    {
+                        'input_name': 'analytics_json',
+                        'value': str(analytics_input)
+                    }
+                ]
+            }
+        )
+        
+        if start_response.status_code != 200:
+            print(f"Gumloop start error: {start_response.text}")
+            return jsonify({'error': 'Failed to start practice text generation'}), 500
+        
+        run_data = start_response.json()
+        run_id = run_data.get('run_id')
+        
+        if not run_id:
+            return jsonify({'error': 'No run ID returned from Gumloop'}), 500
+        
+        # Poll for completion (max 30 seconds)
+        max_attempts = 30
+        for attempt in range(max_attempts):
+            time.sleep(1)
+            
+            status_response = requests.get(
+                f'https://api.gumloop.com/api/v1/get_pl_run',
+                headers={
+                    'Authorization': f'Bearer {GUMLOOP_API_KEY}'
+                },
+                params={
+                    'run_id': run_id,
+                    'user_id': GUMLOOP_USER_ID
+                }
+            )
+            
+            if status_response.status_code != 200:
+                continue
+            
+            status_data = status_response.json()
+            state = status_data.get('state')
+            
+            if state == 'DONE':
+                # Get the output
+                outputs = status_data.get('outputs', {})
+                practice_text = outputs.get('output', outputs.get('practice_text', ''))
+                
+                if practice_text:
+                    # Split into words for the typing test
+                    words = practice_text.split()
+                    return jsonify({
+                        'success': True,
+                        'practice_text': practice_text,
+                        'words': words
+                    }), 200
+                else:
+                    return jsonify({'error': 'No practice text generated'}), 500
+            
+            elif state == 'FAILED':
+                return jsonify({'error': 'Practice text generation failed'}), 500
+        
+        return jsonify({'error': 'Timeout waiting for practice text generation'}), 504
+        
+    except Exception as e:
+        import traceback
+        print(f"Gumloop API error: {e}")
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
