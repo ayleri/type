@@ -470,3 +470,168 @@ def get_weaknesses():
         'recommendations': recommendations,
         'weakness_counts': weakness_counts
     }), 200
+
+
+@typing_bp.route('/typing-analytics', methods=['POST'])
+@jwt_required()
+def save_typing_analytics():
+    """Save typing test result with detailed analytics."""
+    user_id = get_jwt_identity()
+    user = mongo.db.users.find_one({'_id': ObjectId(user_id)})
+    
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+    
+    data = request.get_json()
+    
+    if not data:
+        return jsonify({'error': 'No data provided'}), 400
+    
+    # Save the typing test result
+    result = {
+        'user_id': ObjectId(user_id),
+        'mode': 'typing',
+        'wpm': data.get('wpm', 0),
+        'raw_wpm': data.get('raw_wpm', 0),
+        'accuracy': data.get('accuracy', 0),
+        'time_limit': data.get('time_limit', 60),
+        'keystrokes': data.get('keystrokes', 0),
+        'correct_keystrokes': data.get('correct_keystrokes', 0),
+        'words_typed': data.get('words_typed', 0),
+        'analytics': data.get('analytics', {}),
+        'created_at': datetime.utcnow()
+    }
+    
+    mongo.db.typing_results.insert_one(result)
+    
+    # Update user's aggregate typing analytics
+    analytics = data.get('analytics', {})
+    
+    # Update problem character pairs
+    for pair_data in analytics.get('problem_character_pairs', []):
+        pair = pair_data.get('pair', '')
+        if pair:
+            mongo.db.users.update_one(
+                {'_id': ObjectId(user_id)},
+                {
+                    '$inc': {
+                        f'typing_analytics.character_pairs.{pair}.total_ms': pair_data.get('avg_ms', 0),
+                        f'typing_analytics.character_pairs.{pair}.count': 1,
+                        f'typing_analytics.character_pairs.{pair}.errors': pair_data.get('errors', 0),
+                    }
+                }
+            )
+    
+    # Update problem words
+    for word_data in analytics.get('problem_words', []):
+        word = word_data.get('word', '')
+        if word:
+            mongo.db.users.update_one(
+                {'_id': ObjectId(user_id)},
+                {
+                    '$inc': {
+                        f'typing_analytics.problem_words.{word}.attempts': word_data.get('attempts', 0),
+                        f'typing_analytics.problem_words.{word}.errors': word_data.get('errors', 0),
+                    }
+                }
+            )
+    
+    # Update finger transition stats
+    for transition in analytics.get('difficult_finger_transitions', []):
+        t_type = transition.get('type', '')
+        if t_type:
+            mongo.db.users.update_one(
+                {'_id': ObjectId(user_id)},
+                {
+                    '$inc': {
+                        f'typing_analytics.finger_transitions.{t_type}.total_ms': transition.get('avg_ms', 0),
+                        f'typing_analytics.finger_transitions.{t_type}.count': 1,
+                        f'typing_analytics.finger_transitions.{t_type}.errors': transition.get('errors', 0),
+                    }
+                }
+            )
+    
+    # Increment tests count
+    mongo.db.users.update_one(
+        {'_id': ObjectId(user_id)},
+        {'$inc': {'typing_tests_completed': 1}}
+    )
+    
+    return jsonify({
+        'message': 'Analytics saved successfully',
+        'wpm': result['wpm'],
+        'accuracy': result['accuracy']
+    }), 201
+
+
+@typing_bp.route('/typing-analytics', methods=['GET'])
+@jwt_required()
+def get_typing_analytics():
+    """Get user's aggregated typing analytics."""
+    user_id = get_jwt_identity()
+    user = mongo.db.users.find_one({'_id': ObjectId(user_id)})
+    
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+    
+    typing_analytics = user.get('typing_analytics', {})
+    
+    # Format character pairs
+    char_pairs = typing_analytics.get('character_pairs', {})
+    problem_pairs = []
+    for pair, stats in char_pairs.items():
+        if stats.get('count', 0) > 0:
+            problem_pairs.append({
+                'pair': pair,
+                'avg_ms': round(stats.get('total_ms', 0) / stats.get('count', 1)),
+                'errors': stats.get('errors', 0),
+                'count': stats.get('count', 0)
+            })
+    problem_pairs.sort(key=lambda x: x['errors'], reverse=True)
+    
+    # Format problem words
+    words = typing_analytics.get('problem_words', {})
+    problem_words = []
+    for word, stats in words.items():
+        if stats.get('attempts', 0) > 0:
+            problem_words.append({
+                'word': word,
+                'attempts': stats.get('attempts', 0),
+                'errors': stats.get('errors', 0),
+                'error_rate': round(stats.get('errors', 0) / stats.get('attempts', 1) * 100)
+            })
+    problem_words.sort(key=lambda x: x['errors'], reverse=True)
+    
+    # Format finger transitions
+    transitions = typing_analytics.get('finger_transitions', {})
+    finger_transitions = []
+    for t_type, stats in transitions.items():
+        if stats.get('count', 0) > 0:
+            error_rate = stats.get('errors', 0) / stats.get('count', 1)
+            finger_transitions.append({
+                'type': t_type,
+                'avg_ms': round(stats.get('total_ms', 0) / stats.get('count', 1)),
+                'errors': stats.get('errors', 0),
+                'severity': 'high' if error_rate > 0.1 else 'medium' if error_rate > 0.05 else 'low'
+            })
+    
+    # Get recent test history
+    recent_tests = list(mongo.db.typing_results.find({
+        'user_id': ObjectId(user_id),
+        'mode': 'typing'
+    }).sort('created_at', -1).limit(10))
+    
+    history = [{
+        'wpm': t.get('wpm', 0),
+        'accuracy': t.get('accuracy', 0),
+        'date': t.get('created_at').isoformat() if t.get('created_at') else None
+    } for t in recent_tests]
+    
+    return jsonify({
+        'problem_character_pairs': problem_pairs[:10],
+        'problem_words': problem_words[:10],
+        'difficult_finger_transitions': finger_transitions,
+        'tests_completed': user.get('typing_tests_completed', 0),
+        'history': history
+    }), 200
+

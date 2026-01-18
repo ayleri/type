@@ -77,6 +77,24 @@ export const typingApi = {
   getStats: () => api.get('/typing/stats'),
   
   getWeaknesses: () => api.get('/typing/weaknesses'),
+  
+  // Typing test analytics
+  saveTypingAnalytics: (data: {
+    wpm: number
+    raw_wpm: number
+    accuracy: number
+    time_limit: number
+    keystrokes: number
+    correct_keystrokes: number
+    words_typed: number
+    analytics: {
+      problem_character_pairs: Array<{ pair: string; avg_ms: number; errors: number }>
+      problem_words: Array<{ word: string; attempts: number; errors: number; avg_wpm: number }>
+      difficult_finger_transitions: Array<{ type: string; avg_ms: number; errors: number; severity: string }>
+    }
+  }) => api.post('/typing/typing-analytics', data),
+  
+  getTypingAnalytics: () => api.get('/typing/typing-analytics'),
 }
 
 export default api

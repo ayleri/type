@@ -12,7 +12,8 @@ export default function Layout() {
 
   const navLinks = [
     { path: '/', label: 'Home' },
-    { path: '/play', label: 'Play' },
+    { path: '/play', label: 'Vim Racer' },
+    { path: '/type', label: 'Type Test' },
     { path: '/stats', label: 'Stats' },
   ]
 
